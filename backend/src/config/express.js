@@ -15,7 +15,12 @@ const apiLimiter = rateLimit({
 });
 
 function buildAllowedOrigins() {
-  return [env.clientUrl, ...env.corsOriginsExtra];
+  const origins = new Set([
+    'http://localhost:5173',
+    env.clientUrl,
+    ...env.corsOriginsExtra,
+  ]);
+  return Array.from(origins).filter(Boolean);
 }
 
 function configureMiddleware(app) {
