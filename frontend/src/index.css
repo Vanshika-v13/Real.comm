@@ -26,6 +26,7 @@
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
   }
 
   ::-webkit-scrollbar {
@@ -97,4 +98,76 @@
     width: 4px;
     height: 4px;
   }
+}
+
+/* Premium Light Mode Stylesheet Overrides */
+:root.light {
+  color-scheme: light;
+  --color-background: #f1f5f9;
+  --color-foreground: #0f172a;
+  --color-secondary: #64748b;
+  --color-card: rgba(255, 255, 255, 0.9);
+  --color-card-hover: rgba(241, 245, 249, 1);
+  --color-border: rgba(15, 23, 42, 0.08);
+}
+
+:root.light body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+:root.light .glass-panel {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+:root.light .bg-slate-950,
+:root.light .bg-slate-900,
+:root.light .bg-slate-900\/50,
+:root.light .bg-slate-950\/50 {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+:root.light .text-white {
+  color: #0f172a !important;
+}
+
+:root.light .text-secondary {
+  color: #475569 !important;
+}
+
+:root.light .border-white\/5,
+:root.light .border-white\/10 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+:root.light .bg-white\/5,
+:root.light .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+:root.light .bg-white\/5:hover,
+:root.light .bg-white\/10:hover {
+  background-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+:root.light .input-field {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+:root.light .input-field:focus {
+  background-color: #ffffff !important;
+  border-color: var(--color-primary) !important;
+}
+
+:root.light ::-webkit-scrollbar-thumb {
+  background-color: rgba(15, 23, 42, 0.1);
+}
+
+:root.light ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(15, 23, 42, 0.2);
 }

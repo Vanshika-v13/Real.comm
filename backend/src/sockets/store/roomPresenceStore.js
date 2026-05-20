@@ -1,3 +1,6 @@
+/** Grace period before treating socket disconnect as an intentional leave (page refresh). */
+const RECONNECT_GRACE_MS = 20000;
+
 /**
  * In-memory presence: which sockets are in which logical rooms (room codes).
  * Tracks multiple tabs per user; user-left is signaled only when the last
@@ -7,6 +10,66 @@ class RoomPresenceStore {
   constructor() {
     /** @type {Map<string, Map<string, { userId: string, userName: string }>>} */
     this.byRoom = new Map();
+    /** @type {Map<string, { timer: NodeJS.Timeout, socketId: string }>} */
+    this.pendingRemovalByUser = new Map();
+  }
+
+  _pendingKey(roomId, userId) {
+    return `${roomId}:${userId}`;
+  }
+
+  cancelPendingRemoval(roomId, userId) {
+    const key = this._pendingKey(roomId, userId);
+    const pending = this.pendingRemovalByUser.get(key);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.pendingRemovalByUser.delete(key);
+    }
+  }
+
+  /**
+   * Defer removing a socket so page refresh can reconnect without leaving the room.
+   * @returns {boolean} true if removal was scheduled
+   */
+  scheduleDeferredRemove(roomId, socketId, onFinalize) {
+    const sockets = this.byRoom.get(roomId);
+    const entry = sockets?.get(socketId);
+    if (!entry) {
+      return false;
+    }
+
+    const userId = entry.userId;
+    const key = this._pendingKey(roomId, userId);
+    this.cancelPendingRemoval(roomId, userId);
+
+    const timer = setTimeout(() => {
+      this.pendingRemovalByUser.delete(key);
+      onFinalize();
+    }, RECONNECT_GRACE_MS);
+
+    this.pendingRemovalByUser.set(key, { timer, socketId });
+    return true;
+  }
+
+  /**
+   * Drop stale sockets for the same user before adding a refreshed connection.
+   */
+  pruneStaleSocketsForUser(roomId, userId, keepSocketId) {
+    const sockets = this.byRoom.get(roomId);
+    if (!sockets) {
+      return 0;
+    }
+    let removed = 0;
+    for (const [sid] of [...sockets.entries()]) {
+      if (sid !== keepSocketId && sockets.get(sid).userId === userId) {
+        sockets.delete(sid);
+        removed += 1;
+      }
+    }
+    if (sockets.size === 0) {
+      this.byRoom.delete(roomId);
+    }
+    return removed;
   }
 
   /**

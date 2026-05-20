@@ -2,6 +2,7 @@ const User = require('../models/User');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
 const { generateToken } = require('../utils/tokenUtils');
+const { formatPublicUser } = require('../utils/userProfileFormat');
 
 const sendTokenResponse = (user, statusCode, res) => {
   const token = generateToken(user._id);
@@ -16,9 +17,10 @@ const sendTokenResponse = (user, statusCode, res) => {
   }
 
   res.status(statusCode).cookie('token', token, cookieOptions).json({
+    success: true,
     status: 'success',
     data: {
-      user: user.toJSON(),
+      user: formatPublicUser(user),
       token,
     },
   });
@@ -49,9 +51,10 @@ const login = asyncHandler(async (req, res) => {
 
 const getMe = asyncHandler(async (req, res) => {
   res.status(200).json({
+    success: true,
     status: 'success',
     data: {
-      user: req.user.toJSON(),
+      user: formatPublicUser(req.user),
     },
   });
 });

@@ -7,7 +7,11 @@ export const useFiles = (roomId) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const socket = socketService.getSocket();
+  const [socket, setSocket] = useState(() => socketService.getSocket());
+
+  useEffect(() => {
+    return socketService.subscribe((sock) => setSocket(sock));
+  }, []);
 
   const fetchFiles = useCallback(async () => {
     if (!roomId) return;
@@ -44,7 +48,15 @@ export const useFiles = (roomId) => {
       });
 
       if (response.data.status === 'success') {
-        return response.data.data.file;
+        const uploaded = response.data.data.file;
+        if (uploaded) {
+          setFiles((prev) => {
+            const id = uploaded.id || uploaded._id;
+            if (prev.some((f) => (f.id || f._id) === id)) return prev;
+            return [uploaded, ...prev];
+          });
+        }
+        return uploaded;
       }
     } catch (err) {
       console.error('Upload error:', err);
@@ -63,8 +75,10 @@ export const useFiles = (roomId) => {
 
   useEffect(() => {
     fetchFiles();
+  }, [fetchFiles]);
 
-    if (!socket) return undefined;
+  useEffect(() => {
+    if (!socket || !roomId) return undefined;
 
     const handleFileShared = ({ file }) => {
       if (!file) return;
@@ -77,7 +91,7 @@ export const useFiles = (roomId) => {
 
     socket.on('file-shared', handleFileShared);
     return () => socket.off('file-shared', handleFileShared);
-  }, [roomId, socket, fetchFiles]);
+  }, [roomId, socket]);
 
   return {
     files,

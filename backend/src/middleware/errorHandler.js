@@ -12,6 +12,9 @@ function handleDuplicateKeyDB(err) {
   if (key === 'email') {
     return new AppError('Email already registered', 409);
   }
+  if (key === 'username') {
+    return new AppError('Username is already taken', 409);
+  }
   return new AppError('Duplicate field value', 409);
 }
 

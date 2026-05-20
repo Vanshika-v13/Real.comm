@@ -25,6 +25,9 @@ async function socketAuthMiddleware(socket, next) {
 
     socket.data.userId = user._id.toString();
     socket.data.userName = user.name;
+    socket.data.username = user.username || null;
+    socket.data.profileImage = user.profileImage || null;
+    socket.data.bio = user.bio || '';
     return next();
   } catch (err) {
     return next(err);

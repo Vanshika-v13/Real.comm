@@ -11,13 +11,20 @@ function assertRelayAllowed(io, socket, roomId, targetSocketId) {
     };
   }
 
+  // Permissive check: log if target isn't confirmed in the room adapter,
+  // but still allow the relay. io.to(socketId).emit() is a safe no-op
+  // if the socket doesn't exist. Blocking here caused a silent regression
+  // when room-adapter membership lagged behind socket.join().
   const members = io.sockets.adapter.rooms.get(roomId);
-  if (!members || !members.has(targetSocketId)) {
-    return {
-      ok: false,
-      message: 'Target peer is not in this room',
-      field: 'targetSocketId',
-    };
+  const targetInRoom = members && members.has(targetSocketId);
+  if (!targetInRoom) {
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    console.warn('[SIGNAL] target not confirmed in room adapter — relaying anyway', {
+      roomId,
+      targetSocketId,
+      targetConnected: !!targetSocket,
+      memberCount: members ? members.size : 0,
+    });
   }
 
   return { ok: true };

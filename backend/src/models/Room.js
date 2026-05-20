@@ -24,6 +24,34 @@ const roomSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    name: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+      default: 'Meeting Room',
+    },
+    joinApprovalEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    pendingParticipants: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        socketId: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        requestedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

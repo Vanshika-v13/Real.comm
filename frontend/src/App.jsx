@@ -3,10 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { RoomProvider } from './context/RoomContext';
 import { ToastProvider } from './context/ToastContext';
+import { ThemeProvider } from './context/ThemeContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
-import RootRedirect from './components/RootRedirect';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -17,34 +18,34 @@ import Demo from './pages/Demo';
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <ToastProvider>
-          <RoomProvider>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<RootRedirect />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/demo" element={<Demo />} />
+    <ThemeProvider>
+      <Router>
+        <AuthProvider>
+          <ToastProvider>
+            <RoomProvider>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/" element={<Landing />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/demo" element={<Demo />} />
 
-              {/* Protected Routes */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/join" element={<JoinRoom />} />
-                <Route path="/room/:roomId" element={<RoomDashboard />} />
-                <Route path="/messages" element={<Dashboard />} />
-                <Route path="/channels" element={<Dashboard />} />
-                <Route path="/settings" element={<Settings />} />
-              </Route>
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/join" element={<JoinRoom />} />
+                  <Route path="/meetings" element={<JoinRoom />} />
+                  <Route path="/room/:roomId" element={<RoomDashboard />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </RoomProvider>
-        </ToastProvider>
-      </AuthProvider>
-    </Router>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </RoomProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </Router>
+    </ThemeProvider>
   );
 }
 

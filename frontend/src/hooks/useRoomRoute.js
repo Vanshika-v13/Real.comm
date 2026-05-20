@@ -24,9 +24,9 @@ export const useRoomRoute = () => {
 
     joiningRef.current = true;
     setFailed(false);
-    joinRoom(roomId).then((ok) => {
+    joinRoom(roomId).then((result) => {
       joiningRef.current = false;
-      if (!ok) setFailed(true);
+      if (result === 'failed') setFailed(true);
     });
   }, [roomId, currentRoom?.roomId, joinRoom]);
 

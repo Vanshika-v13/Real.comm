@@ -43,12 +43,21 @@ function registerSignalingHandlers(socket, io) {
         return;
       }
 
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
       relayToPeer(io, targetSocketId, 'offer', {
         roomId,
         fromSocketId: socket.id,
         fromUserId: socket.data.userId,
         fromUserName: socket.data.userName,
         sdp: sdp.value,
+      });
+
+      console.log('[SIGNAL] offer relayed', {
+        from: socket.id,
+        to: targetSocketId,
+        roomId,
+        sdpType: sdp.value?.type,
+        delivered: !!targetSocket,
       });
 
       respond?.({ ok: true });
@@ -89,12 +98,21 @@ function registerSignalingHandlers(socket, io) {
         return;
       }
 
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
       relayToPeer(io, targetSocketId, 'answer', {
         roomId,
         fromSocketId: socket.id,
         fromUserId: socket.data.userId,
         fromUserName: socket.data.userName,
         sdp: sdp.value,
+      });
+
+      console.log('[SIGNAL] answer relayed', {
+        from: socket.id,
+        to: targetSocketId,
+        roomId,
+        sdpType: sdp.value?.type,
+        delivered: !!targetSocket,
       });
 
       respond?.({ ok: true });
@@ -141,12 +159,19 @@ function registerSignalingHandlers(socket, io) {
         return;
       }
 
+      const targetSocket = io.sockets.sockets.get(targetSocketId);
       relayToPeer(io, targetSocketId, 'ice-candidate', {
         roomId,
         fromSocketId: socket.id,
         fromUserId: socket.data.userId,
         fromUserName: socket.data.userName,
         candidate: candidate.value,
+      });
+
+      console.log('[SIGNAL] ice-candidate relayed', {
+        from: socket.id,
+        to: targetSocketId,
+        delivered: !!targetSocket,
       });
 
       respond?.({ ok: true });

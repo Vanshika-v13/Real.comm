@@ -6,8 +6,9 @@ function validateRequest(req, res, next) {
   if (!result.isEmpty()) {
     const errors = mapExpressValidatorErrors(result);
     return res.status(400).json({
+      success: false,
       status: 'fail',
-      message: 'Validation failed',
+      message: errors[0]?.message || 'Validation failed',
       errors,
     });
   }

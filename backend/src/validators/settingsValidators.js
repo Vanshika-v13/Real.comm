@@ -37,7 +37,7 @@ const profileStorageKeyRules = [
 ];
 
 const updateProfileRules = [
-  rejectUnknownFields(['name', 'bio']),
+  rejectUnknownFields(['name', 'fullName', 'username', 'bio']),
   body('name')
     .optional()
     .trim()
@@ -45,12 +45,48 @@ const updateProfileRules = [
     .withMessage('Name cannot be empty')
     .isLength({ min: 2, max: 100 })
     .withMessage('Name must be between 2 and 100 characters'),
+  body('fullName')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Full name cannot be empty')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Full name must be between 2 and 100 characters'),
+  body('username')
+    .optional()
+    .trim()
+    .toLowerCase()
+    .isLength({ min: 3, max: 30 })
+    .withMessage('Username must be between 3 and 30 characters')
+    .matches(/^[a-z0-9_]+$/)
+    .withMessage('Username may only contain letters, numbers, and underscores'),
   body('bio')
     .optional()
     .trim()
     .isLength({ max: 500 })
     .withMessage('Bio cannot exceed 500 characters'),
-  requireAtLeastOneField(['name', 'bio']),
+  requireAtLeastOneField(['name', 'fullName', 'username', 'bio']),
+];
+
+const updatePasswordRules = [
+  rejectUnknownFields(['currentPassword', 'newPassword', 'confirmPassword']),
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+  body('newPassword')
+    .notEmpty()
+    .withMessage('New password is required')
+    .isLength({ min: 8 })
+    .withMessage('New password must be at least 8 characters'),
+  body('confirmPassword')
+    .notEmpty()
+    .withMessage('Password confirmation is required')
+    .custom((value, { req }) => {
+      if (value !== req.body.newPassword) {
+        throw new Error('Password confirmation does not match new password');
+      }
+      return true;
+    }),
 ];
 
 const updateThemeRules = [
@@ -62,8 +98,22 @@ const updateThemeRules = [
     .withMessage('themePreference must be dark, light, or system'),
 ];
 
+const NOTIFICATION_FIELDS = [
+  'sound',
+  'messages',
+  'meetings',
+  'mentions',
+  'emailNotifications',
+  'meetingAlerts',
+  'soundEnabled',
+];
+
 const updateNotificationsRules = [
-  rejectUnknownFields(['emailNotifications', 'meetingAlerts', 'soundEnabled']),
+  rejectUnknownFields(NOTIFICATION_FIELDS),
+  body('sound').optional().isBoolean().withMessage('sound must be a boolean').toBoolean(),
+  body('messages').optional().isBoolean().withMessage('messages must be a boolean').toBoolean(),
+  body('meetings').optional().isBoolean().withMessage('meetings must be a boolean').toBoolean(),
+  body('mentions').optional().isBoolean().withMessage('mentions must be a boolean').toBoolean(),
   body('emailNotifications')
     .optional()
     .isBoolean()
@@ -79,7 +129,7 @@ const updateNotificationsRules = [
     .isBoolean()
     .withMessage('soundEnabled must be a boolean')
     .toBoolean(),
-  requireAtLeastOneField(['emailNotifications', 'meetingAlerts', 'soundEnabled']),
+  requireAtLeastOneField(NOTIFICATION_FIELDS),
 ];
 
 const updatePrivacyRules = [
@@ -100,6 +150,7 @@ const updatePrivacyRules = [
 module.exports = {
   profileStorageKeyRules,
   updateProfileRules,
+  updatePasswordRules,
   updateThemeRules,
   updateNotificationsRules,
   updatePrivacyRules,

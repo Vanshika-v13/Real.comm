@@ -4,7 +4,7 @@ const roomController = require('../controllers/roomController');
 const fileController = require('../controllers/fileController');
 const { protect } = require('../middleware/auth');
 const validateRequest = require('../middleware/validate');
-const { roomIdParamRules } = require('../validators/roomValidators');
+const { createRoomRules, roomIdParamRules } = require('../validators/roomValidators');
 const { uploadSingle } = require('../middleware/uploadFile');
 
 const router = express.Router();
@@ -19,7 +19,7 @@ const fileUploadLimiter = rateLimit({
 
 router.use(protect);
 
-router.post('/create', roomController.create);
+router.post('/create', createRoomRules, validateRequest, roomController.create);
 
 router.post(
   '/:roomId/files',

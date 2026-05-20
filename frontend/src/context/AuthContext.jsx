@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../api/axios';
+import api, { setDefaultAuthToken } from '../api/axios';
 import socketService from '../services/socketService';
 import {
   clearAuthToken,
   getAuthToken,
+  initAuthStorageSync,
   persistAuthToken,
 } from '../utils/authStorage';
+import { isAuthenticationFailure } from '../utils/apiErrors';
+import { useTheme } from './ThemeContext';
 
 const AuthContext = createContext();
 
@@ -14,9 +17,23 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { changeTheme } = useTheme();
 
   useEffect(() => {
     checkUser();
+  }, []);
+
+  useEffect(() => {
+    const cleanup = initAuthStorageSync({
+      onTokenUpdated: () => {
+        socketService.reconnectWithLatestToken();
+      },
+      onTokenCleared: () => {
+        setUser(null);
+        socketService.disconnect();
+      },
+    });
+    return cleanup;
   }, []);
 
   const checkUser = async () => {
@@ -28,11 +45,21 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const response = await api.get('/auth/me');
-      setUser(response.data.data.user);
+      const userData = response.data.data.user;
+      setUser(userData);
+      
+      if (userData?.themePreference) {
+        localStorage.setItem('theme', userData.themePreference);
+        changeTheme(userData.themePreference);
+      }
+      
       socketService.connect();
-    } catch {
-      clearAuthToken();
-      setUser(null);
+    } catch (error) {
+      if (isAuthenticationFailure(error)) {
+        clearAuthToken();
+        setDefaultAuthToken(null);
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -42,7 +69,14 @@ export const AuthProvider = ({ children }) => {
     const response = await api.post('/auth/login', { email, password });
     const { token, user: userData } = response.data.data;
     persistAuthToken(token, rememberMe);
+    setDefaultAuthToken(token);
     setUser(userData);
+    
+    if (userData?.themePreference) {
+      localStorage.setItem('theme', userData.themePreference);
+      changeTheme(userData.themePreference);
+    }
+    
     socketService.connect();
     return response.data;
   };
@@ -55,13 +89,21 @@ export const AuthProvider = ({ children }) => {
     });
     const { token, user: userData } = response.data.data;
     persistAuthToken(token, rememberMe);
+    setDefaultAuthToken(token);
     setUser(userData);
+    
+    if (userData?.themePreference) {
+      localStorage.setItem('theme', userData.themePreference);
+      changeTheme(userData.themePreference);
+    }
+    
     socketService.connect();
     return response.data;
   };
 
   const logout = () => {
     clearAuthToken();
+    setDefaultAuthToken(null);
     setUser(null);
     socketService.disconnect();
   };

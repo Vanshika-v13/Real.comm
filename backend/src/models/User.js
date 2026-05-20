@@ -12,6 +12,16 @@ const userSchema = new mongoose.Schema(
       minlength: [2, 'Name must be at least 2 characters'],
       maxlength: [100, 'Name cannot exceed 100 characters'],
     },
+    username: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      minlength: [3, 'Username must be at least 3 characters'],
+      maxlength: [30, 'Username cannot exceed 30 characters'],
+      match: [/^[a-z0-9_]+$/, 'Username may only contain letters, numbers, and underscores'],
+      sparse: true,
+      unique: true,
+    },
     email: {
       type: String,
       required: [true, 'Email is required'],
@@ -49,6 +59,10 @@ const userSchema = new mongoose.Schema(
       default: 'system',
     },
     notificationSettings: {
+      sound: { type: Boolean, default: true },
+      messages: { type: Boolean, default: true },
+      meetings: { type: Boolean, default: true },
+      mentions: { type: Boolean, default: true },
       emailNotifications: { type: Boolean, default: true },
       meetingAlerts: { type: Boolean, default: true },
       soundEnabled: { type: Boolean, default: true },

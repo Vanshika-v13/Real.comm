@@ -7,6 +7,7 @@ const { uploadProfileImageSingle } = require('../middleware/uploadProfileImage')
 const {
   profileStorageKeyRules,
   updateProfileRules,
+  updatePasswordRules,
   updateThemeRules,
   updateNotificationsRules,
   updatePrivacyRules,
@@ -19,14 +20,23 @@ const profileUploadLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { status: 'fail', message: 'Too many profile uploads, try again later' },
+  message: { success: false, status: 'fail', message: 'Too many profile uploads, try again later' },
 });
+
+router.get(
+  '/profile-image/:storageKey',
+  profileStorageKeyRules,
+  validateRequest,
+  settingsController.serveProfileImage,
+);
 
 router.use(protect);
 
 router.get('/me', settingsController.getMySettings);
 
 router.put('/profile', updateProfileRules, validateRequest, settingsController.updateProfile);
+
+router.put('/password', updatePasswordRules, validateRequest, settingsController.updatePassword);
 
 router.put('/theme', updateThemeRules, validateRequest, settingsController.updateTheme);
 
@@ -47,12 +57,5 @@ router.post(
 );
 
 router.delete('/profile-image', settingsController.removeProfileImage);
-
-router.get(
-  '/profile-image/:storageKey',
-  profileStorageKeyRules,
-  validateRequest,
-  settingsController.serveProfileImage,
-);
 
 module.exports = router;

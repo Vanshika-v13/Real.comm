@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import api from '../api/axios';
 import socketService from '../services/socketService';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 import { normalizeRoomCode } from '../utils/roomId';
 import {
   dedupeParticipants,
@@ -9,16 +10,35 @@ import {
   upsertParticipant,
   findDuplicateParticipants,
 } from '../utils/participants';
+import {
+  markRecentRoomInactive,
+  resolveRoomDisplayName,
+  upsertRecentRoom,
+} from '../utils/recentRoomsStorage';
+import {
+  writeRoomSession,
+  clearRoomSession,
+  readRoomSession,
+  writePrejoinPrefs,
+  readPrejoinPrefs,
+} from '../utils/roomSessionStorage';
 
 const RoomContext = createContext();
 
 export const useRoom = () => useContext(RoomContext);
 
 export const RoomProvider = ({ children }) => {
+  const { user } = useAuth();
   const [currentRoom, setCurrentRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Join Approval States
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
+  const [pendingRoomId, setPendingRoomId] = useState(null);
+  const [joinRequests, setJoinRequests] = useState([]);
+
   const navigate = useNavigate();
 
   const syncActiveUsers = useCallback((nextParticipants) => {
@@ -39,6 +59,10 @@ export const RoomProvider = ({ children }) => {
         userId: data.userId,
         name: data.name,
         socketId: data.socketId,
+        profileImage: data.profileImage,
+        fullName: data.fullName,
+        username: data.username,
+        bio: data.bio,
       });
       logParticipantDedupe('user-joined', prev.length, next.length, { socketId: data.socketId });
       if (import.meta.env.DEV) {
@@ -70,42 +94,227 @@ export const RoomProvider = ({ children }) => {
     });
   }, [syncActiveUsers]);
 
-  const roomHandlersRef = useRef({ handleUserJoined, handleUserLeft });
-  useEffect(() => {
-    roomHandlersRef.current = { handleUserJoined, handleUserLeft };
-  }, [handleUserJoined, handleUserLeft]);
-
-  useEffect(() => {
-    const socket = socketService.getSocket() || socketService.connect();
-    if (!socket) return undefined;
-
-    const onUserJoined = (data) => roomHandlersRef.current.handleUserJoined(data);
-    const onUserLeft = (data) => roomHandlersRef.current.handleUserLeft(data);
-
-    socket.on('user-joined', onUserJoined);
-    socket.on('user-left', onUserLeft);
-
+  const handleJoinRequest = useCallback((data) => {
+    // data: { roomId, userId, user, socketId, requestedAt }
     if (import.meta.env.DEV) {
-      console.log('[RTC:participants] Room socket listeners registered');
+      console.log('[RTC:approval] join-request received', data);
+    }
+    const normalized = {
+      ...data,
+      userId: data.userId || data.user?.userId || data.user?.id,
+    };
+    setJoinRequests((prev) => {
+      if (prev.some((req) => req.socketId === normalized.socketId)) return prev;
+      return [...prev, normalized];
+    });
+  }, []);
+
+  const handleJoinApproved = useCallback((data) => {
+    // data: { roomId, message, activeUsers }
+    const activeUsers = dedupeParticipants(data.activeUsers || []);
+    setParticipants(activeUsers);
+    setCurrentRoom({
+      roomId: data.roomId,
+      activeUsers,
+    });
+    
+    if (user) {
+      upsertRecentRoom(user, {
+        roomId: data.roomId,
+        roomName: resolveRoomDisplayName(data, data.name),
+        role: 'joiner',
+        joinedAt: new Date().toISOString(),
+        isActive: true,
+      });
+    }
+
+    setIsPendingApproval(false);
+    setPendingRoomId(null);
+    const prior = readRoomSession(data.roomId) || readPrejoinPrefs(data.roomId);
+    writeRoomSession(data.roomId, {
+      micOn: prior?.micOn ?? false,
+      cameraOn: prior?.cameraOn ?? false,
+    });
+    navigate(`/room/${data.roomId}`);
+  }, [navigate, user]);
+
+  const handleJoinRejected = useCallback((data) => {
+    // data: { roomId, message }
+    setIsPendingApproval(false);
+    setPendingRoomId(null);
+    setError(data.message || 'Request to join was rejected by host');
+    navigate('/dashboard');
+  }, [navigate]);
+
+  const handleRoomSessionClosed = useCallback((data) => {
+    const roomId = data.roomId || currentRoom?.roomId;
+    if (user && roomId) {
+      markRecentRoomInactive(user, roomId);
+    }
+    if (roomId) {
+      clearRoomSession(roomId);
+    }
+
+    setCurrentRoom(null);
+    setParticipants([]);
+    setError(data?.reason || 'The host has left the meeting.');
+    navigate('/dashboard');
+  }, [user, currentRoom, navigate]);
+
+  const handleUserProfileUpdated = useCallback((data) => {
+    // data: { userId, name, fullName, username, profileImage, bio }
+    setParticipants((prev) => {
+      const next = prev.map((p) => {
+        if (p.userId === data.userId) {
+          return {
+            ...p,
+            name: data.fullName || data.name || p.name,
+            fullName: data.fullName || p.fullName,
+            username: data.username || p.username,
+            profileImage: data.profileImage || p.profileImage,
+            bio: data.bio || p.bio,
+          };
+        }
+        return p;
+      });
+      syncActiveUsers(next);
+      return next;
+    });
+  }, [syncActiveUsers]);
+
+  const roomHandlersRef = useRef({
+    handleUserJoined,
+    handleUserLeft,
+    handleJoinRequest,
+    handleJoinApproved,
+    handleJoinRejected,
+    handleUserProfileUpdated,
+    handleRoomSessionClosed
+  });
+
+  useEffect(() => {
+    roomHandlersRef.current = {
+      handleUserJoined,
+      handleUserLeft,
+      handleJoinRequest,
+      handleJoinApproved,
+      handleJoinRejected,
+      handleUserProfileUpdated,
+      handleRoomSessionClosed
+    };
+  }, [
+    handleUserJoined,
+    handleUserLeft,
+    handleJoinRequest,
+    handleJoinApproved,
+    handleJoinRejected,
+    handleUserProfileUpdated,
+    handleRoomSessionClosed
+  ]);
+
+  const [activeSocket, setActiveSocket] = useState(() => socketService.getSocket());
+  const [socketVersion, setSocketVersion] = useState(0);
+
+  useEffect(() => {
+    const handleSocketChange = (sock) => {
+      setActiveSocket(sock);
+      setSocketVersion((v) => v + 1);
+    };
+
+    const unsubscribe = socketService.subscribe(handleSocketChange);
+
+    const socket = socketService.getSocket() || socketService.connect();
+    if (socket) {
+      setActiveSocket(socket);
     }
 
     return () => {
-      socket.off('user-joined', onUserJoined);
-      socket.off('user-left', onUserLeft);
-      if (import.meta.env.DEV) {
-        console.log('[RTC:participants] Room socket listeners removed');
-      }
+      unsubscribe();
     };
   }, []);
 
+  useEffect(() => {
+    if (!activeSocket) {
+      if (import.meta.env.DEV) {
+        console.log('[RTC:approval] No active socket — listeners not registered');
+      }
+      return undefined;
+    }
+
+    const onUserJoined = (data) => roomHandlersRef.current.handleUserJoined(data);
+    const onUserLeft = (data) => roomHandlersRef.current.handleUserLeft(data);
+    const onJoinRequest = (data) => roomHandlersRef.current.handleJoinRequest(data);
+    const onJoinApproved = (data) => roomHandlersRef.current.handleJoinApproved(data);
+    const onJoinRejected = (data) => roomHandlersRef.current.handleJoinRejected(data);
+    const onUserProfileUpdated = (data) => roomHandlersRef.current.handleUserProfileUpdated(data);
+    const onRoomSessionClosed = (data) => roomHandlersRef.current.handleRoomSessionClosed(data);
+
+    activeSocket.on('user-joined', onUserJoined);
+    activeSocket.on('user-left', onUserLeft);
+    activeSocket.on('join-request', onJoinRequest);
+    activeSocket.on('join-approved', onJoinApproved);
+    activeSocket.on('join-rejected', onJoinRejected);
+    activeSocket.on('user-profile-updated', onUserProfileUpdated);
+    activeSocket.on('room-session-closed', onRoomSessionClosed);
+
+    if (import.meta.env.DEV) {
+      console.log('[RTC:approval] Socket listeners registered', { socketId: activeSocket.id, socketVersion });
+    }
+
+    return () => {
+      activeSocket.off('user-joined', onUserJoined);
+      activeSocket.off('user-left', onUserLeft);
+      activeSocket.off('join-request', onJoinRequest);
+      activeSocket.off('join-approved', onJoinApproved);
+      activeSocket.off('join-rejected', onJoinRejected);
+      activeSocket.off('user-profile-updated', onUserProfileUpdated);
+      activeSocket.off('room-session-closed', onRoomSessionClosed);
+      if (import.meta.env.DEV) {
+        console.log('[RTC:approval] Socket listeners cleaned up', { socketId: activeSocket.id });
+      }
+    };
+  }, [activeSocket, socketVersion]);
+
+  const approveJoinRequest = useCallback((roomId, userId, socketId) => {
+    return new Promise((resolve) => {
+      const socket = socketService.getSocket();
+      if (!socket) return resolve(false);
+      socket.emit('approve-join-request', { roomId, userId, socketId }, (res) => {
+        if (res?.ok || res?.message?.includes('no longer connected') || res?.message?.includes('not found')) {
+          setJoinRequests((prev) => prev.filter((r) => r.socketId !== socketId));
+        }
+        resolve(!!res?.ok);
+      });
+    });
+  }, []);
+
+  const rejectJoinRequest = useCallback((roomId, userId, socketId, reason) => {
+    return new Promise((resolve) => {
+      const socket = socketService.getSocket();
+      if (!socket) return resolve(false);
+      socket.emit('reject-join-request', { roomId, userId, socketId, message: reason }, (res) => {
+        if (res?.ok || res?.message?.includes('not found')) {
+          setJoinRequests((prev) => prev.filter((r) => r.socketId !== socketId));
+        }
+        resolve(!!res?.ok);
+      });
+    });
+  }, []);
+
+  const cancelJoinRequest = useCallback(() => {
+    setIsPendingApproval(false);
+    setPendingRoomId(null);
+    navigate('/dashboard');
+  }, [navigate]);
+
   const joinRoom = useCallback(
     (roomId, options = {}) => {
-      const { navigateToRoom = true } = options;
+      const { navigateToRoom = true, micOn = false, cameraOn = false } = options;
       const normalizedId = normalizeRoomCode(roomId);
 
       if (!normalizedId) {
         setError('Invalid room code');
-        return Promise.resolve(false);
+        return Promise.resolve('failed');
       }
 
       setLoading(true);
@@ -117,7 +326,7 @@ export const RoomProvider = ({ children }) => {
           if (!socket) {
             setError('Not connected to server');
             setLoading(false);
-            resolve(false);
+            resolve('failed');
             return;
           }
 
@@ -139,21 +348,29 @@ export const RoomProvider = ({ children }) => {
                 roomId: response.roomId,
                 activeUsers,
               });
+              setIsPendingApproval(false);
+              setPendingRoomId(null);
+              writeRoomSession(response.roomId, { micOn, cameraOn });
 
               if (navigateToRoom) {
                 navigate(`/room/${response.roomId}`);
               }
-              resolve(true);
+              resolve('joined');
+            } else if (response?.pending) {
+              writePrejoinPrefs(normalizedId, { micOn, cameraOn });
+              setIsPendingApproval(true);
+              setPendingRoomId(normalizedId);
+              resolve('pending');
             } else {
               setError(response?.message || 'Could not join room');
-              resolve(false);
+              resolve('failed');
             }
             setLoading(false);
           });
         } catch {
           setError('Failed to connect to room');
           setLoading(false);
-          resolve(false);
+          resolve('failed');
         }
       });
     },
@@ -165,13 +382,27 @@ export const RoomProvider = ({ children }) => {
     setError(null);
     try {
       const response = await api.post('/rooms/create', roomData);
-      const roomId = response.data?.data?.room?.roomId;
+      const createdRoom = response.data?.data?.room;
+      const roomId = createdRoom?.roomId;
       if (!roomId) {
         setError('Failed to create room');
         setLoading(false);
         return false;
       }
-      return joinRoom(roomId);
+
+      if (user) {
+        upsertRecentRoom(user, {
+          roomId,
+          roomName: resolveRoomDisplayName(createdRoom, roomData?.name),
+          role: 'host',
+          joinedAt: new Date().toISOString(),
+          isActive: true,
+        });
+      }
+
+      const result = await joinRoom(roomId);
+      setLoading(false);
+      return result === 'joined' || result === 'pending';
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create room');
       setLoading(false);
@@ -185,6 +416,12 @@ export const RoomProvider = ({ children }) => {
       if (socket) {
         socket.emit('leave-room', { roomId: currentRoom.roomId });
       }
+
+      if (user) {
+        markRecentRoomInactive(user, currentRoom.roomId);
+      }
+      clearRoomSession(currentRoom.roomId);
+
       setCurrentRoom(null);
       setParticipants([]);
       navigate('/dashboard');
@@ -201,6 +438,13 @@ export const RoomProvider = ({ children }) => {
         joinRoom,
         createRoom,
         leaveRoom,
+        isPendingApproval,
+        pendingRoomId,
+        joinRequests,
+        setJoinRequests,
+        approveJoinRequest,
+        rejectJoinRequest,
+        cancelJoinRequest,
       }}
     >
       {children}

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { clearAuthToken, getAuthToken } from '../utils/authStorage';
+import { isAuthenticationFailure } from '../utils/apiErrors';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -8,13 +9,30 @@ const api = axios.create({
   },
 });
 
+export { isSettingsRequest, isAuthSessionEndpoint } from '../utils/requestPaths';
+
+export function setDefaultAuthToken(token) {
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common.Authorization;
+  }
+}
+
+export function applyAuthHeader(config, token = getAuthToken()) {
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
+  }
+  return config;
+}
+
 api.interceptors.request.use(
   (config) => {
     const token = getAuthToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+    setDefaultAuthToken(token);
+    return applyAuthHeader(config, token);
   },
   (error) => Promise.reject(error),
 );
@@ -22,9 +40,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (isAuthenticationFailure(error)) {
       clearAuthToken();
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+      setDefaultAuthToken(null);
+      if (
+        window.location.pathname !== '/login'
+        && window.location.pathname !== '/register'
+      ) {
         window.location.href = '/login';
       }
     }

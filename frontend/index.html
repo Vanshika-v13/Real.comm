@@ -5,6 +5,27 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Real.Comm - Premium Communication App</title>
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('theme') || 'system';
+          var root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          var activeTheme = theme;
+          if (theme === 'system') {
+            var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            activeTheme = isDark ? 'dark' : 'light';
+          }
+          if (activeTheme === 'light') {
+            root.classList.add('light');
+            root.style.colorScheme = 'light';
+          } else {
+            root.classList.add('dark');
+            root.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

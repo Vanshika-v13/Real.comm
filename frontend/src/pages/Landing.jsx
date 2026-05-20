@@ -7,8 +7,18 @@ import {
 } from 'react-icons/fi';
 import Button from '../components/Button';
 import Footer from '../components/Footer';
+import { useAuth } from '../context/AuthContext';
 
 const Landing = () => {
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-background overflow-hidden selection:bg-primary/30">
       {/* Navbar */}
@@ -26,12 +36,23 @@ const Landing = () => {
               <a href="#security" className="hover:text-white transition-colors">Security</a>
             </div>
             <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="ghost" className="hidden sm:flex">Log in</Button>
-              </Link>
-              <Link to="/register">
-                <Button className="shadow-lg shadow-primary/20">Sign Up</Button>
-              </Link>
+              {user ? (
+                <>
+                  <Button variant="ghost" onClick={logout} className="hidden sm:flex">Log out</Button>
+                  <Link to="/dashboard">
+                    <Button className="shadow-lg shadow-primary/20">Collaborate Now</Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button className="shadow-lg shadow-primary/20 hidden sm:flex">Log in</Button>
+                  </Link>
+                  <Link to="/register">
+                    <Button className="shadow-lg shadow-primary/20">Sign Up</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -63,11 +84,19 @@ const Landing = () => {
               Built for speed, security, and the way modern teams actually work.
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 max-w-xs sm:max-w-none mx-auto px-4">
-              <Link to="/register" className="w-full sm:w-auto">
-                <Button className="w-full h-14 px-10 text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] sm:hover:scale-105 transition-transform flex items-center justify-center">
-                  Get Started <FiArrowRight className="ml-2" />
-                </Button>
-              </Link>
+              {user ? (
+                <Link to="/dashboard" className="w-full sm:w-auto">
+                  <Button className="w-full h-14 px-10 text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] sm:hover:scale-105 transition-transform flex items-center justify-center">
+                    Open Workspace <FiArrowRight className="ml-2" />
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/register" className="w-full sm:w-auto">
+                  <Button className="w-full h-14 px-10 text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] sm:hover:scale-105 transition-transform flex items-center justify-center">
+                    Start Collaborating <FiArrowRight className="ml-2" />
+                  </Button>
+                </Link>
+              )}
               <Link to="/demo" className="w-full sm:w-auto">
                 <Button variant="outline" className="w-full h-14 px-10 text-lg rounded-2xl hover:bg-white/5 flex items-center justify-center">
                   View demo

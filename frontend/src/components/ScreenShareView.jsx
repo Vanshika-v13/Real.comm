@@ -44,7 +44,7 @@ const ScreenShareView = ({ stream, presenterName }) => {
         ref={videoRef}
         autoPlay
         playsInline
-        muted={false}
+        muted
         className="w-full h-full object-contain bg-black"
       />
 

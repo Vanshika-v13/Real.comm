@@ -1,13 +1,24 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   FiMic, FiMicOff,
   FiVideo, FiVideoOff,
   FiMonitor, FiLogOut,
   FiMessageSquare,
   FiEdit3,
+  FiSmile,
 } from 'react-icons/fi';
 import { useRoom } from '../context/RoomContext';
+
+const HandIcon = () => (
+  <svg stroke="currentColor" fill="none" strokeWidth="2.2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="1.15em" width="1.15em" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v5" />
+    <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6" />
+    <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v7.5" />
+    <path d="M6 13V9h-.5a1.5 1.5 0 0 0 0 3" />
+    <path d="M18 10a2 2 0 0 1 2 2v5a7 7 0 0 1-7 7h-2.14a4 4 0 0 1-3.64-2.34L6 17.5" />
+  </svg>
+);
 
 const RoomControls = ({
   onToggleMic,
@@ -15,24 +26,41 @@ const RoomControls = ({
   onToggleScreen,
   onToggleWhiteboard,
   onToggleChat,
+  onToggleHand,
+  onSendReaction,
   isMicOn,
   isVideoOn,
   isScreenSharing,
   isOtherSharing,
   isWhiteboardOpen,
   isChatOpen,
+  isHandRaised,
   isSpeaking = false,
   audioLevel = 0,
+  unreadCount = 0,
 }) => {
   const { leaveRoom } = useRoom();
   const showVoiceGlow = isMicOn && (isSpeaking || audioLevel > 0.015);
+  
+  const [showReactions, setShowReactions] = useState(false);
+  const reactionPanelRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (reactionPanelRef.current && !reactionPanelRef.current.contains(event.target)) {
+        setShowReactions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+    <div className="fixed bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-[95vw] sm:max-w-max flex justify-center">
       <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
-        className="glass-panel px-6 py-4 rounded-3xl flex items-center gap-4 shadow-2xl shadow-black/50 border-white/10"
+        className="glass-panel px-3 py-3 sm:px-6 sm:py-4 rounded-[1.5rem] sm:rounded-3xl flex flex-wrap items-center justify-center gap-2 sm:gap-4 shadow-2xl shadow-black/50 border-white/10"
       >
         <MicControlButton
           active={isMicOn}
@@ -49,7 +77,7 @@ const RoomControls = ({
           label={isVideoOn ? 'Stop Video' : 'Start Video'}
         />
 
-        <motion.div className="w-px h-8 bg-white/10 mx-2" />
+        <motion.div className="w-px h-8 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
 
         <ControlButton
           active={!isScreenSharing}
@@ -74,16 +102,60 @@ const RoomControls = ({
           icon={<FiMessageSquare />}
           label={isChatOpen ? 'Close Chat' : 'Chat'}
           isAccent={isChatOpen}
+          badgeCount={unreadCount}
         />
 
-        <motion.div className="w-px h-8 bg-white/10 mx-2" />
+        <ControlButton
+          active={!isHandRaised}
+          onClick={onToggleHand}
+          icon={<HandIcon />}
+          label={isHandRaised ? 'Lower Hand' : 'Raise Hand'}
+          isAccent={isHandRaised}
+        />
+
+        <div className="relative">
+          <ControlButton
+            active={!showReactions}
+            onClick={() => setShowReactions((prev) => !prev)}
+            icon={<FiSmile />}
+            label="Reactions"
+            isAccent={showReactions}
+          />
+          <AnimatePresence>
+            {showReactions && (
+              <motion.div
+                ref={reactionPanelRef}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute bottom-16 left-1/2 -translate-x-1/2 p-2 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-white/10 flex gap-2 shadow-2xl z-50 whitespace-nowrap"
+              >
+                {['👍', '❤️', '😂', '😮', '👏'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => {
+                      onSendReaction(emoji);
+                      setShowReactions(false);
+                    }}
+                    className="w-10 h-10 rounded-xl hover:bg-white/10 text-2xl flex items-center justify-center transition-all hover:scale-125"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <motion.div className="w-px h-8 bg-white/10 mx-1 sm:mx-2 hidden sm:block" />
 
         <button
           type="button"
           onClick={leaveRoom}
-          className="w-12 h-12 rounded-2xl bg-accent/20 text-accent hover:bg-accent hover:text-white transition-all flex items-center justify-center group relative"
+          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl sm:rounded-[1.5rem] bg-accent/20 text-accent hover:bg-accent hover:text-white transition-all flex items-center justify-center group relative"
         >
-          <FiLogOut className="w-5 h-5" />
+          <FiLogOut className="w-6 h-6 sm:w-7 sm:h-7" />
           <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-all bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
             Leave Room
           </span>
@@ -105,13 +177,13 @@ const MicControlButton = ({ icon, active = true, onClick, label, showVoiceGlow, 
     }}
     transition={{ type: 'spring', stiffness: 400, damping: 22 }}
     className={`
-      w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative
+      w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all group relative
       ${active
         ? 'bg-white/5 text-white hover:bg-white/10'
         : 'bg-accent/20 text-accent hover:bg-accent/30'}
     `}
   >
-    <span className="w-5 h-5">{icon}</span>
+    <span className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center relative">{icon}</span>
     {showVoiceGlow && (
       <motion.span
         className="absolute -top-1 -right-1 flex items-end gap-px h-2"
@@ -136,13 +208,13 @@ const MicControlButton = ({ icon, active = true, onClick, label, showVoiceGlow, 
   </motion.button>
 );
 
-const ControlButton = ({ icon, active = true, onClick, label, disabled, isAccent }) => (
+const ControlButton = ({ icon, active = true, onClick, label, disabled, isAccent, badgeCount }) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
     className={`
-      w-12 h-12 rounded-2xl flex items-center justify-center transition-all group relative
+      w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all group relative
       ${disabled ? 'opacity-30 cursor-not-allowed' : ''}
       ${isAccent
         ? 'bg-primary text-white shadow-lg shadow-primary/20'
@@ -151,7 +223,12 @@ const ControlButton = ({ icon, active = true, onClick, label, disabled, isAccent
           : 'bg-accent/20 text-accent hover:bg-accent/30')}
     `}
   >
-    <span className="w-5 h-5">{icon}</span>
+    <span className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center relative">{icon}</span>
+    {badgeCount > 0 && (
+      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-accent text-[9px] font-bold rounded-full flex items-center justify-center text-white border-2 border-slate-950 px-1">
+        {badgeCount}
+      </span>
+    )}
     {label && (
       <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-all bg-slate-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
         {label}

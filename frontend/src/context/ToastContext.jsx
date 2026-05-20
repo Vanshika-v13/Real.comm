@@ -35,7 +35,14 @@ export const ToastProvider = ({ children }) => {
                     : 'bg-slate-900 border-white/10 text-white'
               }`}
             >
-              {t.message}
+              {typeof t.message === 'object' && t.message !== null ? (
+                <div className="flex flex-col gap-0.5">
+                  {t.message.title && <div className="font-semibold text-white">{t.message.title}</div>}
+                  {t.message.description && <div className="text-xs text-secondary leading-relaxed font-light">{t.message.description}</div>}
+                </div>
+              ) : (
+                t.message
+              )}
             </motion.div>
           ))}
         </AnimatePresence>

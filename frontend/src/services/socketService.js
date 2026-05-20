@@ -19,13 +19,19 @@ class SocketService {
 
   connect() {
     const token = getAuthToken();
-    if (!token) return;
+    if (!token) return null;
 
     if (this.socket?.connected) {
+      const currentAuthToken = this.socket.auth?.token;
+      if (currentAuthToken !== token) {
+        this.reconnectWithLatestToken();
+        return this.socket;
+      }
       return this.socket;
     }
 
     if (this.socket) {
+      this.socket.auth = { token };
       this.socket.connect();
       return this.socket;
     }
@@ -56,6 +62,15 @@ class SocketService {
     });
 
     return this.socket;
+  }
+
+  reconnectWithLatestToken() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+      this.notify();
+    }
+    return this.connect();
   }
 
   disconnect() {

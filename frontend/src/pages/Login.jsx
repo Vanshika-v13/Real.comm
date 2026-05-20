@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import AuthLayout from '../layouts/AuthLayout';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -13,9 +13,12 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const fromPath = location.state?.from || '/dashboard';
 
   if (!authLoading && user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={fromPath} replace />;
   }
 
   const handleSubmit = async (e) => {
@@ -25,7 +28,7 @@ const Login = () => {
 
     try {
       await login(formData.email, formData.password, rememberMe);
-      navigate('/dashboard', { replace: true });
+      navigate(fromPath, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
     } finally {
