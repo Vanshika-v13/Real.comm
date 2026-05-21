@@ -68,6 +68,7 @@ const Settings = () => {
       name: settings.fullName || settings.name || '',
       username: settings.username || '',
       bio: settings.bio || '',
+      profileImage: settings.profileImage || null,
     });
     const pref = (settings.themePreference === 'light' || settings.themePreference === 'dark')
       ? settings.themePreference

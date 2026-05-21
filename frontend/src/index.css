@@ -103,35 +103,43 @@
 /* Premium Light Mode Stylesheet Overrides */
 :root.light {
   color-scheme: light;
-  --color-background: #f1f5f9;
+  --color-background: #f6f7ff;
   --color-foreground: #0f172a;
-  --color-secondary: #64748b;
-  --color-card: rgba(255, 255, 255, 0.9);
-  --color-card-hover: rgba(241, 245, 249, 1);
-  --color-border: rgba(15, 23, 42, 0.08);
+  --color-secondary: #475569;
+  --color-card: rgba(255, 255, 255, 0.85);
+  --color-card-hover: rgba(246, 247, 255, 1);
+  --color-border: rgba(99, 102, 241, 0.15);
 }
 
 :root.light body {
-  background-color: #f1f5f9;
-  color: #0f172a;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
 }
 
 :root.light .glass-panel {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-  border: 1px solid rgba(15, 23, 42, 0.08) !important;
-  box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  box-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.08) !important;
+  backdrop-filter: blur(16px) !important;
 }
 
 :root.light .bg-slate-950,
 :root.light .bg-slate-900,
 :root.light .bg-slate-900\/50,
 :root.light .bg-slate-950\/50 {
-  background-color: #ffffff !important;
-  border-color: rgba(15, 23, 42, 0.06) !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+  backdrop-filter: blur(12px) !important;
 }
 
-:root.light .text-white {
+:root.light .text-white,
+:root.light .text-white\/80,
+:root.light .text-white\/90 {
   color: #0f172a !important;
+}
+
+:root.light .hover\:text-white:hover {
+  color: var(--color-primary) !important;
 }
 
 :root.light .text-secondary {
@@ -140,34 +148,547 @@
 
 :root.light .border-white\/5,
 :root.light .border-white\/10 {
-  border-color: rgba(15, 23, 42, 0.08) !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
 }
 
 :root.light .bg-white\/5,
 :root.light .bg-white\/10 {
-  background-color: rgba(15, 23, 42, 0.04) !important;
+  background-color: rgba(99, 102, 241, 0.05) !important;
 }
 
 :root.light .bg-white\/5:hover,
 :root.light .bg-white\/10:hover {
-  background-color: rgba(15, 23, 42, 0.08) !important;
+  background-color: rgba(99, 102, 241, 0.1) !important;
 }
 
 :root.light .input-field {
-  background-color: rgba(255, 255, 255, 0.8) !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
   color: #0f172a !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
 }
 
 :root.light .input-field:focus {
   background-color: #ffffff !important;
   border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1) !important;
 }
 
 :root.light ::-webkit-scrollbar-thumb {
-  background-color: rgba(15, 23, 42, 0.1);
+  background-color: rgba(99, 102, 241, 0.15);
 }
 
 :root.light ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(15, 23, 42, 0.2);
+  background-color: rgba(99, 102, 241, 0.25);
+}
+
+:root.light .mockup-panel {
+  box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+:root.light .mockup-bg {
+  background-color: #f6f7ff !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+:root.light .mockup-header-border {
+  border-bottom-color: rgba(99, 102, 241, 0.15) !important;
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+:root.light .mockup-content {
+  opacity: 1 !important;
+}
+
+:root.light .mockup-block {
+  background-color: rgba(139, 92, 246, 0.15) !important;
+}
+
+:root.light .mockup-block-primary {
+  background-color: rgba(99, 102, 241, 0.25) !important;
+}
+
+:root.light .feature-card {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05) !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+:root.light .feature-card:hover {
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+:root.light .security-card {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05) !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+:root.light .security-card:hover {
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+:root.light .bg-slate-950\/30 {
+  background-color: #f6f7ff !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+/* Demo Page and Real-Time Box Light Theme Overrides */
+:root.light .text-slate-200,
+:root.light .text-slate-300,
+:root.light .text-slate-400,
+:root.light .text-slate-500,
+:root.light .text-slate-600 {
+  color: #64748b !important;
+}
+
+:root.light .bg-black\/60,
+:root.light .bg-black\/40,
+:root.light .bg-black\/80 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  color: #0f172a !important;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+:root.light .bg-slate-950\/95,
+:root.light .bg-slate-950\/80,
+:root.light .bg-slate-900\/90,
+:root.light .bg-slate-900\/80,
+:root.light .bg-slate-950\/40,
+:root.light .bg-\[\#020617\] {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: rgba(99, 102, 241, 0.15) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+:root.light .bg-\[radial-gradient\(\#ffffff04_1px\,transparent_1px\)\] {
+  background: radial-gradient(rgba(99, 102, 241, 0.1) 1px, transparent 1px) !important;
+}
+
+:root.light .text-secondary\/40 {
+  color: rgba(99, 102, 241, 0.6) !important;
+}
+
+:root.light .text-secondary\/50 {
+  color: rgba(99, 102, 241, 0.7) !important;
+}
+
+:root.light .text-secondary\/60 {
+  color: rgba(99, 102, 241, 0.8) !important;
+}
+
+:root.light .text-white\/80 {
+  color: #1e293b !important;
+}
+
+/* Video cards and main surfaces in Demo */
+:root.light .bg-slate-950,
+:root.light .bg-slate-900 {
+  background: linear-gradient(to bottom right, #f8f8ff, #eef2ff) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.08) !important;
+}
+
+/* Navbar glass effect override */
+:root.light .bg-background\/80 {
+  background-color: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(16px) !important;
+  border-bottom-color: rgba(99, 102, 241, 0.15) !important;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.05) !important;
+}
+
+/* =============================================================
+   DEMO PAGE — PREMIUM LIGHT THEME DEEP OVERRIDES
+   These selectors are intentionally high-specificity and only
+   match elements inside /demo. Landing page is unaffected.
+   ============================================================= */
+
+/* 1. DEMO PAGE ROOT BACKGROUND — airy layered pastel ambience
+      Unique to demo: w-screen + overflow-hidden + bg-slate-950 combo
+      Landing page uses bg-background (not bg-slate-950) on its root.
+   ---------------------------------------------------------------- */
+:root.light .w-screen.overflow-hidden.bg-slate-950 {
+  background:
+    radial-gradient(ellipse 80% 55% at 12% -8%, rgba(139, 92, 246, 0.11) 0%, transparent 62%),
+    radial-gradient(ellipse 65% 48% at 88% 108%, rgba(99, 102, 241, 0.09) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 65% at 50% 50%, rgba(167, 139, 250, 0.05) 0%, transparent 72%),
+    #f8f8ff !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+/* 2. DEMO ROOM HEADER STRIP
+      bg-slate-950/50 + backdrop-blur-md is unique to demo header.
+      Navbar uses bg-background/80 (caught by rule above).
+   ---------------------------------------------------------------- */
+:root.light .bg-slate-950\/50.backdrop-blur-md {
+  background-color: rgba(255, 255, 255, 0.93) !important;
+  border-bottom-color: rgba(99, 102, 241, 0.12) !important;
+  box-shadow: 0 1px 10px rgba(99, 102, 241, 0.07) !important;
+}
+
+/* 3. GRADIENT TO/FROM COLORS — fix dark gradient endpoints in light mode
+   ---------------------------------------------------------------- */
+:root.light .to-slate-950 {
+  --tw-gradient-to: rgba(230, 235, 255, 0.35) !important;
+}
+:root.light .to-purple-500\/5 {
+  --tw-gradient-to: rgba(168, 85, 247, 0.06) !important;
+}
+:root.light .from-indigo-500\/5 {
+  --tw-gradient-from: rgba(99, 102, 241, 0.06) !important;
+}
+:root.light .from-indigo-500\/10 {
+  --tw-gradient-from: rgba(99, 102, 241, 0.1) !important;
+}
+:root.light .from-rose-500\/5 {
+  --tw-gradient-from: rgba(244, 63, 94, 0.05) !important;
+}
+:root.light .from-emerald-500\/5 {
+  --tw-gradient-from: rgba(16, 185, 129, 0.05) !important;
+}
+
+/* 4. PARTICIPANT CARD OUTER SHELLS
+      aspect-video + bg-slate-900/50 only appears in the demo video grid.
+   ---------------------------------------------------------------- */
+:root.light .aspect-video.bg-slate-900\/50 {
+  background: rgba(255, 255, 255, 0.93) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  box-shadow:
+    0 4px 24px rgba(99, 102, 241, 0.08),
+    0 1px 4px rgba(139, 92, 246, 0.06) !important;
+}
+
+/* 5. PARTICIPANT CARD INNER VIDEO SURFACES — generic fallback
+   ---------------------------------------------------------------- */
+:root.light .aspect-video .w-full.h-full.bg-slate-950 {
+  background: linear-gradient(145deg, #fafaff 0%, #eef0ff 100%) !important;
+  box-shadow: none !important;
+}
+
+/* 6. PER-CARD PASTEL TINTS via nth-child on the 2-col video grid
+      Landing page NEVER has bare .grid-cols-2 — it uses
+      "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" (different classes).
+   ---------------------------------------------------------------- */
+/* Card 1 (You) — soft lavender-white */
+:root.light .grid.grid-cols-2 > div:nth-child(1) .w-full.h-full.bg-slate-950 {
+  background: linear-gradient(145deg, #fafaff 0%, rgba(237, 233, 254, 0.65) 100%) !important;
+}
+/* Card 2 (Alex) — pale indigo-white */
+:root.light .grid.grid-cols-2 > div:nth-child(2) .w-full.h-full.bg-slate-950 {
+  background: linear-gradient(145deg, #f8faff 0%, rgba(224, 231, 255, 0.65) 100%) !important;
+}
+/* Card 3 (Sarah) — blush violet-white */
+:root.light .grid.grid-cols-2 > div:nth-child(3) .w-full.h-full.bg-slate-950 {
+  background: linear-gradient(145deg, #fff8fe 0%, rgba(243, 232, 255, 0.65) 100%) !important;
+}
+/* Card 4 (Daniel) — soft cyan-white */
+:root.light .grid.grid-cols-2 > div:nth-child(4) .w-full.h-full.bg-slate-950 {
+  background: linear-gradient(145deg, #f8fdff 0%, rgba(207, 250, 254, 0.55) 100%) !important;
+}
+
+/* 7. ACTIVE/SPEAKING CARD — soft indigo outline, no neon
+   ---------------------------------------------------------------- */
+:root.light .aspect-video.border-indigo-500 {
+  border-color: rgba(99, 102, 241, 0.65) !important;
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.14),
+    0 6px 28px rgba(99, 102, 241, 0.12) !important;
+}
+
+/* 8. LARGE AVATAR CIRCLES (w-16 h-16) in video cards
+   ---------------------------------------------------------------- */
+:root.light .w-16.h-16.rounded-full.bg-indigo-500\/15 {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #4338ca !important;
+}
+:root.light .w-16.h-16.rounded-full.bg-indigo-500\/10 {
+  background-color: rgba(99, 102, 241, 0.18) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  color: #4338ca !important;
+}
+:root.light .w-16.h-16.rounded-full.bg-rose-500\/10 {
+  background-color: rgba(244, 63, 94, 0.15) !important;
+  border-color: rgba(244, 63, 94, 0.32) !important;
+  color: #be123c !important;
+}
+:root.light .w-16.h-16.rounded-full.bg-slate-900 {
+  background-color: rgba(241, 245, 249, 0.97) !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
+  color: #64748b !important;
+}
+/* Ping ring on active avatar */
+:root.light .w-16.h-16 .rounded-full.border-indigo-500\/30 {
+  border-color: rgba(99, 102, 241, 0.35) !important;
+}
+
+/* 9. SMALL AVATAR CIRCLES (bottom tiles in screen-share mode)
+   ---------------------------------------------------------------- */
+:root.light .w-7.h-7.rounded-full.bg-indigo-500\/10,
+:root.light .w-10.h-10.rounded-full.bg-indigo-500\/10 {
+  background-color: rgba(99, 102, 241, 0.16) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #4338ca !important;
+}
+:root.light .w-7.h-7.rounded-full.bg-rose-500\/10,
+:root.light .w-10.h-10.rounded-full.bg-rose-500\/10 {
+  background-color: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.28) !important;
+  color: #be123c !important;
+}
+:root.light .w-7.h-7.rounded-full.bg-emerald-500\/10,
+:root.light .w-10.h-10.rounded-full.bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+  border-color: rgba(16, 185, 129, 0.28) !important;
+  color: #047857 !important;
+}
+:root.light .w-9.h-9.rounded-full.bg-indigo-500\/10 {
+  background-color: rgba(99, 102, 241, 0.16) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color: #4338ca !important;
+}
+:root.light .w-9.h-9.rounded-full.bg-rose-500\/10 {
+  background-color: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.28) !important;
+  color: #be123c !important;
+}
+:root.light .w-9.h-9.rounded-full.bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+  border-color: rgba(16, 185, 129, 0.28) !important;
+  color: #047857 !important;
+}
+
+/* Mixed indigo/rose gradient avatar (You) */
+:root.light .rounded-full.bg-gradient-to-br.from-indigo-500\/20.to-rose-500\/20 {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(244, 63, 94, 0.18) 100%) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  color: #4338ca !important;
+}
+
+/* 10. PARTICIPANT NAME TAGS — premium elevated white pills
+        bg-black/40 + backdrop-blur-md is the name tag pattern.
+   ---------------------------------------------------------------- */
+:root.light .rounded-full.bg-black\/40.backdrop-blur-md {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  color: #0f172a !important;
+}
+/* Small bottom-tile name tags (rounded not rounded-full) */
+:root.light .rounded.bg-black\/60 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.1) !important;
+  color: #0f172a !important;
+}
+
+/* 11. CONTROLS BAR OUTER WRAPPER
+        Unique combo: bg-slate-950/80 + backdrop-blur-xl + border-t
+   ---------------------------------------------------------------- */
+:root.light .bg-slate-950\/80.backdrop-blur-xl {
+  background-color: rgba(244, 245, 255, 0.65) !important;
+  border-top-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* 12. FLOATING GLASS CONTROL DOCK — premium elevated glass
+        Uses .glass-panel.relative.max-w-full which is UNIQUE to
+        the demo controls bar (landing mockup has max-w-5xl mx-auto).
+   ---------------------------------------------------------------- */
+:root.light .glass-panel.relative.max-w-full {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.07),
+    0 4px 20px rgba(99, 102, 241, 0.12),
+    0 16px 50px rgba(99, 102, 241, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.03) !important;
+  backdrop-filter: blur(24px) !important;
+}
+
+/* Controls dock button text color (inactive) */
+:root.light .glass-panel.relative.max-w-full button {
+  color: #374151;
+}
+
+/* Inactive control buttons */
+:root.light .glass-panel.relative.max-w-full .bg-white\/5 {
+  background-color: rgba(99, 102, 241, 0.05) !important;
+  color: #374151 !important;
+}
+:root.light .glass-panel.relative.max-w-full .bg-white\/5:hover {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  color: #1e293b !important;
+}
+
+/* Active control buttons — indigo filled */
+:root.light .glass-panel.relative.max-w-full .bg-indigo-500 {
+  background-color: #6366f1 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4), 0 1px 3px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Screen-off / mic-off state */
+:root.light .glass-panel.relative.max-w-full .bg-rose-500\/20.text-rose-400 {
+  background-color: rgba(244, 63, 94, 0.12) !important;
+  color: #be123c !important;
+  border-color: rgba(244, 63, 94, 0.25) !important;
+}
+
+/* Tour mode toggle button */
+:root.light .glass-panel.relative.max-w-full .bg-white\/5.text-white:not(.bg-rose-500\/20) {
+  color: #1e293b !important;
+}
+
+/* Controls separator divider */
+:root.light .glass-panel.relative.max-w-full .w-px.bg-white\/10 {
+  background-color: rgba(99, 102, 241, 0.18) !important;
+}
+
+/* 13. SLIDE-OUT SIDEBAR PANELS
+        absolute + right-0 + top-0 + h-full is unique to demo sidebars
+   ---------------------------------------------------------------- */
+:root.light .absolute.right-0.top-0.h-full.bg-slate-950\/95 {
+  background-color: rgba(255, 255, 255, 0.99) !important;
+  border-left-color: rgba(99, 102, 241, 0.14) !important;
+  box-shadow: -8px 0 48px rgba(99, 102, 241, 0.09), -2px 0 8px rgba(139, 92, 246, 0.04) !important;
+}
+
+/* Sidebar header border */
+:root.light .absolute.right-0.top-0.h-full .border-b {
+  border-bottom-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Sidebar close buttons */
+:root.light .absolute.right-0.top-0.h-full .p-1.rounded.bg-white\/5 {
+  background-color: rgba(99, 102, 241, 0.07) !important;
+  color: #6366f1 !important;
+}
+
+/* Participant list — "You" highlighted row */
+:root.light .flex.items-center.gap-3.p-3.rounded-2xl.bg-white\/5.border.border-white\/5 {
+  background-color: rgba(238, 242, 255, 0.75) !important;
+  border-color: rgba(99, 102, 241, 0.18) !important;
+}
+
+/* Participant list — hover rows */
+:root.light .hover\:bg-white\/5:hover {
+  background-color: rgba(99, 102, 241, 0.06) !important;
+}
+
+/* Status dot border fix (was border-slate-950 = very dark) */
+:root.light .border-2.border-slate-950 {
+  border-color: #f8f8ff !important;
+}
+
+/* 14. CHAT PANEL
+   ---------------------------------------------------------------- */
+/* Peer message bubbles */
+:root.light .rounded-2xl.bg-white\/5.text-slate-200.border-white\/5 {
+  background-color: rgba(238, 240, 255, 0.92) !important;
+  border-color: rgba(99, 102, 241, 0.12) !important;
+  color: #0f172a !important;
+}
+
+/* Chat input area wrapper */
+:root.light form.border-t.bg-slate-950 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-top-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Chat input field */
+:root.light input.bg-white\/5.border-white\/5 {
+  background-color: rgba(246, 247, 255, 0.95) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  color: #0f172a !important;
+}
+:root.light input.bg-white\/5.border-white\/5::placeholder {
+  color: rgba(148, 163, 184, 0.85) !important;
+}
+:root.light input.bg-white\/5.border-white\/5:focus {
+  background-color: #ffffff !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+}
+
+/* 15. TOUR CURSOR TOOLTIP PILL
+   ---------------------------------------------------------------- */
+:root.light .bg-slate-900\/90.border-white\/10.backdrop-blur-xl {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(99, 102, 241, 0.28) !important;
+  color: #4338ca !important;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.16), 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Header manual/tour toggle button in demo room */
+:root.light .border-white\/5.bg-white\/5.font-bold.text-white {
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  color: #0f172a !important;
+}
+
+/* 16. SCREEN SHARE MODE
+   ---------------------------------------------------------------- */
+/* Bottom participant strip tiles */
+:root.light .min-w-\[120px\].rounded-xl.bg-slate-900 {
+  background: rgba(250, 250, 255, 0.97) !important;
+  border-color: rgba(99, 102, 241, 0.18) !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.07) !important;
+}
+
+/* Main screen share preview pane */
+:root.light .rounded-\[2rem\].bg-slate-900.border-white\/5 {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(99, 102, 241, 0.2) !important;
+  box-shadow: 0 8px 48px rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Screen share inner content */
+:root.light .bg-slate-950.flex.flex-col.items-center.justify-center.p-8 {
+  background: linear-gradient(135deg, #f8f8ff 0%, #eef2ff 100%) !important;
+}
+
+/* 17. WHITEBOARD MODAL
+   ---------------------------------------------------------------- */
+:root.light .fixed.inset-0.z-50.bg-\[\\#020617\] {
+  background-color: #f6f7ff !important;
+}
+:root.light .rounded-\[2\.5rem\].border-white\/5.bg-slate-950 {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(99, 102, 241, 0.18) !important;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.08) !important;
+}
+
+/* 18. PRESENTING BANNER BADGE
+   ---------------------------------------------------------------- */
+:root.light .bg-indigo-500\/10.border-indigo-500\/20.rounded-full.flex.items-center {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.28) !important;
+}
+
+/* 19. TOAST NOTIFICATIONS
+   ---------------------------------------------------------------- */
+:root.light .fixed.bottom-28.left-6.bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  border-color: rgba(16, 185, 129, 0.28) !important;
+  color: #047857 !important;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.12) !important;
+}
+:root.light .fixed.bottom-28.left-6.bg-rose-500\/10 {
+  background-color: rgba(244, 63, 94, 0.1) !important;
+  border-color: rgba(244, 63, 94, 0.28) !important;
+  color: #be123c !important;
+  box-shadow: 0 8px 24px rgba(244, 63, 94, 0.12) !important;
+}
+:root.light .fixed.bottom-28.left-6.bg-indigo-500\/10 {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.28) !important;
+  color: #4338ca !important;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12) !important;
 }

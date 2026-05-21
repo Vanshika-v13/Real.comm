@@ -28,7 +28,7 @@ const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
       <div className="px-6 py-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-xl">R</span>
+            <span className="text-[#ffffff] font-bold text-xl">R</span>
           </div>
           <span className="text-xl font-bold text-white tracking-tight">Real.Comm</span>
         </div>
@@ -77,7 +77,7 @@ const Sidebar = ({ mobileOpen = false, onCloseMobile = () => {} }) => {
 
         <button
           onClick={logout}
-          className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-secondary hover:text-accent hover:bg-accent/5 transition-all"
+          className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-secondary hover:text-red-500 hover:bg-accent/5 transition-all"
         >
           <FiLogOut />
           <span className="text-sm font-medium">Logout</span>

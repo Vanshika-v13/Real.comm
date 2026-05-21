@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiLogOut, 
+import {
+  FiMic, FiMicOff, FiVideo, FiVideoOff, FiMonitor, FiLogOut,
   FiMessageSquare, FiEdit3, FiUsers, FiFolder, FiCopy, FiLayout,
   FiUploadCloud, FiDownload, FiTrash2, FiX, FiCheckCircle, FiSend, FiSmile, FiPlay, FiPause
 } from 'react-icons/fi';
@@ -107,7 +107,7 @@ const Demo = () => {
       setSarahSpeaking(activeSeed === 1);
       setSarahAudioLevel(activeSeed === 1 ? Math.random() * 0.75 + 0.15 : 0);
       setDanielSpeaking(activeSeed === 2);
-      
+
       if (isMicOn) {
         setMySpeaking(activeSeed === 3);
         setMyAudioLevel(activeSeed === 3 ? Math.random() * 0.75 + 0.15 : 0);
@@ -476,7 +476,7 @@ const Demo = () => {
 
   return (
     <div className="flex h-screen h-[100dvh] h-[100svh] w-screen bg-slate-950 text-foreground overflow-hidden font-sans relative select-none">
-      
+
       {/* Animated Smooth Cursor Pointer */}
       {isTourActive && (
         <motion.div
@@ -532,7 +532,7 @@ const Demo = () => {
 
       {/* Main room app layout structure */}
       <div className="flex-1 flex flex-col relative min-w-0">
-        
+
         {/* Header Block */}
         <header className="h-16 px-4 md:px-6 flex items-center justify-between bg-slate-950/50 backdrop-blur-md border-b border-white/5 z-20 shrink-0">
           <div className="flex items-center gap-3">
@@ -601,7 +601,7 @@ const Demo = () => {
         {/* Dynamic Meeting Grid & presentation content panel */}
         <div className="flex-1 p-4 md:p-6 relative overflow-hidden flex flex-col gap-4 min-h-0 select-none max-w-[1600px] mx-auto w-full">
           <AnimatePresence mode="wait">
-            
+
             {/* Presentation/Screen Sharing active layout mode */}
             {isScreenSharing ? (
               <motion.div
@@ -637,7 +637,7 @@ const Demo = () => {
 
                 {/* Bottom row scroll list of participants tiles */}
                 <div className="h-24 xs:h-28 sm:h-32 md:h-36 flex gap-3 overflow-x-auto pb-1 shrink-0 scrollbar-none">
-                  
+
                   {/* You Bottom Tile */}
                   <div className="min-w-[120px] xs:min-w-[150px] sm:min-w-[200px] rounded-xl sm:rounded-2xl bg-slate-900 border border-white/5 relative overflow-hidden flex items-center justify-center aspect-video shrink-0">
                     {isVideoOn ? (
@@ -699,11 +699,10 @@ const Demo = () => {
                 animate={{ opacity: 1 }}
                 className="w-full max-w-[920px] mx-auto my-auto grid grid-cols-2 gap-4 md:gap-5 auto-rows-fr min-h-0"
               >
-                
+
                 {/* You Tile */}
-                <div className={`w-full aspect-video rounded-xl sm:rounded-2xl bg-slate-900/50 border overflow-hidden relative flex items-center justify-center shadow-lg transition-all duration-300 ${
-                  mySpeaking ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-2 ring-indigo-500/30' : 'border-white/5 hover:border-white/10'
-                }`}>
+                <div className={`w-full aspect-video rounded-xl sm:rounded-2xl bg-slate-900/50 border overflow-hidden relative flex items-center justify-center shadow-lg transition-all duration-300 ${mySpeaking ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-2 ring-indigo-500/30' : 'border-white/5 hover:border-white/10'
+                  }`}>
                   {isVideoOn ? (
                     <div className="w-full h-full bg-slate-950 flex items-center justify-center relative">
                       <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-purple-500/5 animate-pulse-slow" />
@@ -728,9 +727,8 @@ const Demo = () => {
                 </div>
 
                 {/* Alex Tile */}
-                <div className={`w-full aspect-video rounded-xl sm:rounded-2xl bg-slate-900/50 border overflow-hidden relative flex items-center justify-center shadow-lg transition-all duration-300 ${
-                  alexSpeaking ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-2 ring-indigo-500/30' : 'border-white/5 hover:border-white/10'
-                }`}>
+                <div className={`w-full aspect-video rounded-xl sm:rounded-2xl bg-slate-900/50 border overflow-hidden relative flex items-center justify-center shadow-lg transition-all duration-300 ${alexSpeaking ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-2 ring-indigo-500/30' : 'border-white/5 hover:border-white/10'
+                  }`}>
                   <div className="w-full h-full bg-slate-950 flex items-center justify-center relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-slate-950" />
                     <div className={`w-16 h-16 rounded-full bg-indigo-500/10 border border-white/10 flex items-center justify-center text-white text-xl font-bold shadow-2xl transition-all duration-300 ${alexSpeaking ? 'border-indigo-500/30 bg-indigo-500/20' : ''}`}>
@@ -745,9 +743,8 @@ const Demo = () => {
                 </div>
 
                 {/* Sarah Tile */}
-                <div className={`w-full aspect-video rounded-xl sm:rounded-2xl bg-slate-900/50 border overflow-hidden relative flex items-center justify-center shadow-lg transition-all duration-300 ${
-                  sarahSpeaking ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-2 ring-indigo-500/30' : 'border-white/5 hover:border-white/10'
-                }`}>
+                <div className={`w-full aspect-video rounded-xl sm:rounded-2xl bg-slate-900/50 border overflow-hidden relative flex items-center justify-center shadow-lg transition-all duration-300 ${sarahSpeaking ? 'border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-2 ring-indigo-500/30' : 'border-white/5 hover:border-white/10'
+                  }`}>
                   <div className="w-full h-full bg-slate-950 flex items-center justify-center relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-slate-950" />
                     <div className={`w-16 h-16 rounded-full bg-rose-500/10 border border-white/10 flex items-center justify-center text-white text-xl font-bold shadow-2xl transition-all duration-300 ${sarahSpeaking ? 'border-rose-500/30 bg-rose-500/20' : ''}`}>
@@ -796,9 +793,8 @@ const Demo = () => {
                 setIsMicOn(!isMicOn);
                 triggerToast(isMicOn ? 'Microphone muted' : 'Microphone unmuted', isMicOn ? 'warning' : 'success');
               }}
-              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${
-                activeHoverId === 'demo-mic-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
-              } ${isMicOn ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'}`}
+              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${activeHoverId === 'demo-mic-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
+                } ${isMicOn ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'}`}
             >
               {isMicOn ? <FiMic className="w-4 h-4 sm:w-5 sm:h-5" /> : <FiMicOff className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
@@ -811,9 +807,8 @@ const Demo = () => {
                 setIsVideoOn(!isVideoOn);
                 triggerToast(isVideoOn ? 'Camera disabled' : 'Camera enabled', isVideoOn ? 'warning' : 'success');
               }}
-              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${
-                activeHoverId === 'demo-cam-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
-              } ${isVideoOn ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'}`}
+              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${activeHoverId === 'demo-cam-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
+                } ${isVideoOn ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'}`}
             >
               {isVideoOn ? <FiVideo className="w-4 h-4 sm:w-5 sm:h-5" /> : <FiVideoOff className="w-4 h-4 sm:w-5 sm:h-5" />}
             </button>
@@ -835,9 +830,8 @@ const Demo = () => {
                   triggerToast('Started screen sharing', 'success');
                 }
               }}
-              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${
-                activeHoverId === 'demo-share-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
-              } ${isScreenSharing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
+              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${activeHoverId === 'demo-share-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
+                } ${isScreenSharing ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
             >
               <FiMonitor className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -847,9 +841,8 @@ const Demo = () => {
               type="button"
               id="demo-whiteboard-btn"
               onClick={() => setIsWhiteboardOpen(!isWhiteboardOpen)}
-              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${
-                activeHoverId === 'demo-whiteboard-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
-              } ${isWhiteboardOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
+              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${activeHoverId === 'demo-whiteboard-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
+                } ${isWhiteboardOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
             >
               <FiEdit3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -862,9 +855,8 @@ const Demo = () => {
                 setIsChatOpen(!isChatOpen);
                 setIsParticipantsOpen(false);
               }}
-              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${
-                activeHoverId === 'demo-chat-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
-              } ${isChatOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
+              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${activeHoverId === 'demo-chat-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
+                } ${isChatOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
             >
               <FiMessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -877,9 +869,8 @@ const Demo = () => {
                 setIsParticipantsOpen(!isParticipantsOpen);
                 setIsChatOpen(false);
               }}
-              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${
-                activeHoverId === 'demo-participants-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
-              } ${isParticipantsOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
+              className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all group relative border shrink-0 ${activeHoverId === 'demo-participants-btn' ? 'scale-105 border-indigo-500 bg-indigo-500/20' : 'border-transparent'
+                } ${isParticipantsOpen ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25' : 'bg-white/5 text-white hover:bg-white/10'}`}
             >
               <FiUsers className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -890,7 +881,7 @@ const Demo = () => {
 
       {/* Slide-out Sidebar Panels */}
       <AnimatePresence>
-        
+
         {/* Collaborative Chat Sidebar */}
         {isChatOpen && (
           <motion.div
@@ -923,11 +914,10 @@ const Demo = () => {
                   className={`flex flex-col ${msg.sender === 'You' ? 'items-end' : 'items-start'}`}
                 >
                   <span className="text-[10px] text-slate-400 mb-1 font-semibold">{msg.sender}</span>
-                  <div className={`px-4 py-2.5 rounded-2xl text-xs max-w-[85%] border leading-relaxed shadow-sm ${
-                    msg.sender === 'You'
+                  <div className={`px-4 py-2.5 rounded-2xl text-xs max-w-[85%] border leading-relaxed shadow-sm ${msg.sender === 'You'
                       ? 'bg-indigo-500 text-white border-indigo-400/20 rounded-tr-none'
                       : 'bg-white/5 text-slate-200 border-white/5 rounded-tl-none'
-                  }`}>
+                    }`}>
                     {msg.text}
                   </div>
                   <span className="text-[8px] text-slate-500 mt-1">{msg.time}</span>
@@ -963,9 +953,8 @@ const Demo = () => {
                 <button
                   type="submit"
                   id="demo-send-btn"
-                  className={`absolute right-1.5 p-2 rounded-lg text-indigo-400 hover:text-white transition-all ${
-                    activeHoverId === 'demo-send-btn' ? 'scale-110 bg-indigo-500/20 text-white' : ''
-                  }`}
+                  className={`absolute right-1.5 p-2 rounded-lg text-indigo-400 hover:text-white transition-all ${activeHoverId === 'demo-send-btn' ? 'scale-110 bg-indigo-500/20 text-white' : ''
+                    }`}
                 >
                   <FiSend size={14} />
                 </button>
@@ -997,7 +986,7 @@ const Demo = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 min-h-0">
-              
+
               {/* You Participant block */}
               <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
                 <div className="relative shrink-0">
@@ -1076,9 +1065,8 @@ const Demo = () => {
                 type="button"
                 id="demo-whiteboard-close"
                 onClick={() => setIsWhiteboardOpen(false)}
-                className={`p-2.5 rounded-xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all border ${
-                  activeHoverId === 'demo-whiteboard-close' ? 'scale-105 border-rose-500 bg-rose-500/20 text-rose-400' : 'border-transparent'
-                }`}
+                className={`p-2.5 rounded-xl bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all border ${activeHoverId === 'demo-whiteboard-close' ? 'scale-105 border-rose-500 bg-rose-500/20 text-rose-400' : 'border-transparent'
+                  }`}
               >
                 <FiX size={15} />
               </button>
@@ -1110,13 +1098,12 @@ const Demo = () => {
             initial={{ opacity: 0, y: 30, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className={`fixed bottom-28 left-6 z-50 px-4 py-3 rounded-2xl border backdrop-blur-md shadow-2xl flex items-center gap-2.5 text-xs font-semibold ${
-              toastType === 'success'
+            className={`fixed bottom-28 left-6 z-50 px-4 py-3 rounded-2xl border backdrop-blur-md shadow-2xl flex items-center gap-2.5 text-xs font-semibold ${toastType === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                 : toastType === 'warning'
                   ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
                   : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300'
-            }`}
+              }`}
           >
             <FiCheckCircle size={15} className="shrink-0" />
             <span>{toastMessage}</span>

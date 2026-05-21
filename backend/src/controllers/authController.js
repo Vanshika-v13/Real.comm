@@ -27,14 +27,14 @@ const sendTokenResponse = (user, statusCode, res) => {
 };
 
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, profileImage } = req.body;
 
   const existing = await User.findOne({ email });
   if (existing) {
     throw new AppError('Email already registered', 409);
   }
 
-  const user = await User.create({ name, email, password });
+  const user = await User.create({ name, email, password, profileImage });
   sendTokenResponse(user, 201, res);
 });
 
