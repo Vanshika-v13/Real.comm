@@ -130,6 +130,18 @@ async function completeRoomJoin(socket, io, presenceStore, roomId, screenShareSt
     userName: socket.data.userName,
   });
 
+  if (screenShareState) {
+    const { migrated, entry } = screenShareState.migrateSharerSocket(
+      roomId,
+      socket.data.userId,
+      socket.id,
+      socket.data.userName,
+    );
+    if (migrated && entry) {
+      io.to(roomId).emit('screen-share-status', activeScreenShareStatus(entry));
+    }
+  }
+
   const profile = await loadUserProfile(socket.data.userId);
   const participantPayload = formatParticipant(profile, socket.id) || {
     userId: socket.data.userId,

@@ -38,7 +38,7 @@ const ScreenShareView = ({ stream, presenterName }) => {
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="relative w-full h-full rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl group"
+      className="relative w-full h-full min-h-0 max-h-full max-w-full rounded-2xl sm:rounded-3xl bg-slate-900 border border-white/10 overflow-hidden shadow-2xl group"
     >
       <video
         ref={videoRef}

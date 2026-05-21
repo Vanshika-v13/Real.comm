@@ -54,6 +54,27 @@ class ScreenShareStateByRoom {
     this.activeByRoom.delete(roomId);
     return true;
   }
+
+  /**
+   * Page refresh assigns a new socket id — keep presentation active for the same user.
+   * @returns {{ migrated: boolean, entry: object | null }}
+   */
+  migrateSharerSocket(roomId, userId, newSocketId, userName) {
+    const cur = this.activeByRoom.get(roomId);
+    if (!cur || cur.userId !== userId) {
+      return { migrated: false, entry: null };
+    }
+    if (cur.socketId === newSocketId) {
+      return { migrated: false, entry: cur };
+    }
+    const entry = {
+      socketId: newSocketId,
+      userId: cur.userId,
+      userName: userName || cur.userName,
+    };
+    this.activeByRoom.set(roomId, entry);
+    return { migrated: true, entry };
+  }
 }
 
 function inactiveScreenShareStatus() {

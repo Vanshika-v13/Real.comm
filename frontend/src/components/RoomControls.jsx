@@ -56,11 +56,11 @@ const RoomControls = ({
   }, []);
 
   return (
-    <div className="fixed bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-[95vw] sm:max-w-max flex justify-center">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-[min(100vw-1rem,100%)] px-2 sm:px-0 sm:max-w-max flex justify-center pointer-events-none">
       <motion.div
         initial={{ y: 100 }}
         animate={{ y: 0 }}
-        className="glass-panel px-3 py-3 sm:px-6 sm:py-4 rounded-[1.5rem] sm:rounded-3xl flex flex-wrap items-center justify-center gap-2 sm:gap-4 shadow-2xl shadow-black/50 border-white/10"
+        className="glass-panel pointer-events-auto px-2 py-2 sm:px-6 sm:py-4 rounded-[1.25rem] sm:rounded-3xl flex flex-wrap items-center justify-center gap-1.5 sm:gap-4 shadow-2xl shadow-black/50 border-white/10 max-w-full"
       >
         <MicControlButton
           active={isMicOn}

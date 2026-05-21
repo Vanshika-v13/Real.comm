@@ -1,5 +1,4 @@
 const env = require('../../config/env');
-const { ROOM_ID_PATTERN } = require('../../utils/roomId');
 const { validateRoomIdPayload, assertSocketJoinedRoom } = require('../utils/socketRoomPayload');
 const { emitScreenShareError } = require('../utils/featureSocketErrors');
 const {
@@ -110,20 +109,8 @@ function registerScreenShareHandlers(socket, io, screenShareState) {
     }
   });
 
-  socket.on('disconnecting', () => {
-    for (const roomId of socket.rooms) {
-      if (roomId === socket.id) {
-        continue;
-      }
-      if (!ROOM_ID_PATTERN.test(roomId)) {
-        continue;
-      }
-      const cleared = screenShareState.tryStopBySocket(roomId, socket.id);
-      if (cleared) {
-        io.to(roomId).emit('screen-share-status', inactiveScreenShareStatus());
-      }
-    }
-  });
+  // Screen share is cleared on deferred room leave (roomHandlers), not here — avoids
+  // dropping active presentation when the sharer or a viewer refreshes the page.
 }
 
 module.exports = {

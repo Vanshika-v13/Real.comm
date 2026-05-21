@@ -44,22 +44,28 @@ export const attachMediaStream = async (element, stream) => {
     element.volume = 1;
   }
 
+  // Ensure playback attributes are set
+  element.autoplay = true;
+  element.playsInline = true;
+
   const playStream = async () => {
     if (element.srcObject !== stream) return;
     try {
-      await element.play();
+      await element.play().catch((err) => {
+        mediaLog.warn('playback', 'Autoplay blocked or failed; retry on user gesture', err?.message);
+        const retry = () => {
+          element.play().catch(() => {});
+          document.removeEventListener('click', retry);
+          document.removeEventListener('keydown', retry);
+        };
+        document.addEventListener('click', retry, { once: true });
+        document.addEventListener('keydown', retry, { once: true });
+      });
       if (import.meta.env.DEV) {
         mediaLog.info('playback', '[REMOTE-VIDEO] playback started');
       }
     } catch (err) {
-      mediaLog.warn('playback', 'Autoplay blocked; retry on user gesture', err?.message);
-      const retry = () => {
-        element.play().catch(() => {});
-        document.removeEventListener('click', retry);
-        document.removeEventListener('keydown', retry);
-      };
-      document.addEventListener('click', retry, { once: true });
-      document.addEventListener('keydown', retry, { once: true });
+      // Catch any synchronous errors from play() if they occur before promise
     }
   };
 

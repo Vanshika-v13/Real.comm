@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import socketService from '../services/socketService';
 import { mediaLog } from '../utils/mediaLogger';
 import { useToast } from '../context/ToastContext';
+import { patchRoomSession } from '../utils/roomSessionStorage';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -93,40 +94,7 @@ const reportCameraAcquireError = (err, toast) => {
   return false;
 };
 
-/** Queue a renegotiation offer once pc returns to stable state.
- *  Uses a simple polling mechanism with a guard to prevent duplicate tasks per peer.
- */
-const pendingRenegotiationPeers = new Set();
-const queueRenegotiationWhenStable = (pc, peerId, sendOfferFn, label, maxWaitMs = 5000) => {
-  const taskKey = `${peerId}:${label}`;
-  if (pendingRenegotiationPeers.has(taskKey)) return;
 
-  if (pc.signalingState === 'stable') {
-    sendOfferFn(pc, peerId, label);
-    return;
-  }
-
-  pendingRenegotiationPeers.add(taskKey);
-  const start = Date.now();
-  const poll = () => {
-    if (pc.signalingState === 'closed') {
-      pendingRenegotiationPeers.delete(taskKey);
-      return;
-    }
-    if (pc.signalingState === 'stable') {
-      pendingRenegotiationPeers.delete(taskKey);
-      sendOfferFn(pc, peerId, label);
-      return;
-    }
-    if (Date.now() - start < maxWaitMs) {
-      setTimeout(poll, 200);
-    } else {
-      pendingRenegotiationPeers.delete(taskKey);
-      mediaLog.warn('signaling', `[RENEGOTIATION-TIMEOUT] ${label} for ${peerId}`);
-    }
-  };
-  setTimeout(poll, 200);
-};
 
 /** Survives Strict Mode remount — one conferencing bootstrap per room + peer set. */
 const conferencingSession = {
@@ -396,6 +364,12 @@ const syncLocalMediaToPc = async (pc, tracks, peerId, resolveSenderFn, rememberS
         tc.direction = 'sendrecv';
       }
     } else {
+      if (kind === 'video' && isScreenShareActive()) {
+        console.log('[RTC:SCREEN-FIX] skipping video sender clear — screen share active');
+        await bindScreenShareVideoSender(pc, peerId, resolveSenderFn, rememberSenderFn);
+        continue;
+      }
+
       const tc = sender ? pc.getTransceivers().find((t) => t.sender === sender) : null;
 
       if (tc && (tc.direction === 'sendrecv' || tc.direction === 'sendonly')) {
@@ -449,11 +423,15 @@ const getOutgoingVideoTrack = (isSharingScreen, screenTrack, localStream) => {
 };
 
 /** Sync attach — use prepareLocalTracksForNegotiation before createOffer/createAnswer when possible. */
-const ensureLocalTracksOnPc = (pc, stream) => {
+const ensureLocalTracksOnPc = (pc, stream, outgoingVideoTrack = null) => {
   if (!pc || !stream) return;
 
   const audioTrack = stream.getAudioTracks().find((t) => t.readyState === 'live');
-  const videoTrack = stream.getVideoTracks().find((t) => t.readyState === 'live');
+  const videoTrack = isScreenShareActive()
+    ? screenShareGuard.track
+    : (outgoingVideoTrack?.readyState === 'live'
+      ? outgoingVideoTrack
+      : stream.getVideoTracks().find((t) => t.readyState === 'live'));
   const tracks = [audioTrack, videoTrack].filter(Boolean);
 
   tracks.forEach((track) => {
@@ -489,6 +467,89 @@ const upsertTrackOnStream = (prevStream, track) => {
   return stream;
 };
 
+/** Focused diagnostics for screen-share pipeline only. */
+const screenShareLog = (message, detail) => {
+  mediaLog.info('screen', message, detail);
+};
+
+/** Module-level guard — syncLocalMediaToPc runs outside the hook and must see screen-share state. */
+const screenShareGuard = { active: false, track: null, stream: null };
+
+const updateScreenShareGuard = (active, track, stream) => {
+  screenShareGuard.active = !!active;
+  screenShareGuard.track = track ?? null;
+  screenShareGuard.stream = stream ?? null;
+};
+
+const isScreenShareActive = () =>
+  screenShareGuard.active && screenShareGuard.track?.readyState === 'live';
+
+/** Bind screen track to the video sender — never recvonly / replaceTrack(null). */
+const bindScreenShareVideoSender = async (pc, peerId, resolveSenderFn, rememberSenderFn) => {
+  const screenTrack = screenShareGuard.track;
+  const screenStream = screenShareGuard.stream;
+  if (!isScreenShareActive() || !pc) return;
+
+  let sender = resolveSenderFn(pc, peerId, 'video') ?? getVideoSender(pc);
+  if (!sender) {
+    sender = pc.addTrack(screenTrack, screenStream || new MediaStream([screenTrack]));
+    rememberSenderFn(peerId, 'video', sender);
+  } else if (sender.track !== screenTrack) {
+    console.log('[RTC:SCREEN-FIX] replaceTrack called', {
+      senderTrackBefore: sender.track?.id,
+      newTrack: screenTrack.id,
+      readyState: screenTrack.readyState,
+    });
+    await sender.replaceTrack(screenTrack);
+    rememberSenderFn(peerId, 'video', sender);
+  }
+
+  const tc = pc.getTransceivers().find((t) => t.sender === sender);
+  if (tc) {
+    console.log('[RTC:SCREEN-FIX] transceiver state', {
+      direction: tc.direction,
+      currentDirection: tc.currentDirection,
+      mid: tc.mid,
+    });
+    if (tc.direction !== 'sendrecv' && tc.direction !== 'sendonly') {
+      tc.direction = 'sendrecv';
+    }
+  }
+
+  console.log('[RTC:SCREEN-FIX] sender.track after negotiate', {
+    trackId: sender.track?.id,
+    isScreenTrack: sender.track === screenTrack,
+    readyState: sender.track?.readyState,
+  });
+};
+
+/** Ensure a remote presentation receiver track is attachable (enabled + live). */
+const ensurePresentationReceiverTrack = (track, peerId) => {
+  if (!track || track.kind !== 'video') return false;
+  if (track.readyState !== 'live') {
+    screenShareLog('[PRESENTATION] receiver track not live', {
+      peer: peerId,
+      readyState: track.readyState,
+    });
+    return false;
+  }
+  if (!track.enabled) {
+    track.enabled = true;
+    screenShareLog('[PRESENTATION] receiver track was disabled — re-enabled', {
+      peer: peerId,
+      trackId: track.id,
+    });
+  }
+  screenShareLog('[PRESENTATION] receiver track ready', {
+    peer: peerId,
+    trackId: track.id,
+    enabled: track.enabled,
+    muted: track.muted,
+    readyState: track.readyState,
+  });
+  return true;
+};
+
 export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) => {
   const { toast } = useToast();
   const [localStream, setLocalStream] = useState(null);
@@ -508,6 +569,13 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
   const screenStreamRef = useRef(null);
   const screenTrackRef = useRef(null);
   const presenterRef = useRef(null);
+  /** Set synchronously on screen-share-status so media-state cannot mute presentation early. */
+  const activePresenterSocketIdRef = useRef(null);
+  const remoteScreenStreamsRef = useRef({});
+  const remoteStreamsRef = useRef({});
+  const screenRenegotiationInProgressRef = useRef(false);
+  const lastKnownSocketIdRef = useRef(null);
+  const startConferencingRef = useRef(null);
   const negotiatedPeersRef = useRef(new Set());
   const isSharingScreenRef = useRef(false);
   const makingOfferRef = useRef(new Set());
@@ -559,7 +627,16 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
   useEffect(() => {
     presenterRef.current = presenter;
+    activePresenterSocketIdRef.current = presenter?.socketId ?? null;
   }, [presenter]);
+
+  useEffect(() => {
+    remoteScreenStreamsRef.current = remoteScreenStreams;
+  }, [remoteScreenStreams]);
+
+  useEffect(() => {
+    remoteStreamsRef.current = remoteStreams;
+  }, [remoteStreams]);
 
   const rememberPeerName = useCallback((socketId, name) => {
     if (!socketId || !name) return;
@@ -569,6 +646,12 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
   const readLocalMediaFlags = useCallback(() => {
     const stream = localStreamRef.current;
     const audioTrack = getLiveLocalAudioTrack(stream);
+    if (isSharingScreenRef.current && screenTrackRef.current?.readyState === 'live') {
+      return {
+        mic: audioTrack ? audioTrack.enabled : isMicOnRef.current,
+        video: true,
+      };
+    }
     const videoTrack = getLiveLocalVideoTrack(stream);
     return {
       mic: audioTrack ? audioTrack.enabled : isMicOnRef.current,
@@ -615,6 +698,9 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
     }
     if (cameraTrack) {
       cameraTrack.enabled = isVideoOnRef.current;
+    }
+    if (isSharingScreenRef.current && screenTrackRef.current?.readyState === 'live') {
+      screenTrackRef.current.enabled = true;
     }
 
     if (import.meta.env.DEV) {
@@ -733,20 +819,27 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
   const renegotiateAll = useCallback(
     async (reason) => {
+      const localSocketId = socketRef.current?.id;
       const entries = Object.entries(peerConnections.current);
-      mediaLog.debug('signaling', `Renegotiate (${reason})`, { peers: entries.length });
+      const label = reason || 'renegotiation';
+      mediaLog.debug('signaling', `Renegotiate (${label})`, { peers: entries.length });
+
+      const runRenegotiationOffer = async (pcArg, peerIdArg, labelArg) => {
+        const stream = localStreamRef.current;
+        if (stream) {
+          try {
+            await prepareLocalTracksForNegotiation(pcArg, stream, peerIdArg);
+          } catch (err) {
+            mediaLog.warn('signaling', `${labelArg} prepare failed`, err?.message);
+          }
+        }
+        return sendOffer(pcArg, peerIdArg, labelArg);
+      };
 
       await Promise.all(
         entries.map(async ([targetSocketId, pc]) => {
-          const stream = localStreamRef.current;
-          if (stream) {
-            try {
-              await prepareLocalTracksForNegotiation(pc, stream, targetSocketId);
-            } catch (err) {
-              mediaLog.warn('signaling', 'renegotiateAll prepare failed', err?.message);
-            }
-          }
-          await sendOffer(pc, targetSocketId, 'renegotiation');
+          if (!localSocketId || !shouldInitiateOffer(localSocketId, targetSocketId)) return;
+          await runRenegotiationOffer(pc, targetSocketId, label);
         }),
       );
     },
@@ -757,8 +850,18 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
    * MUST run before createOffer/createAnswer so SDP includes local tracks.
    * Same path for offerer and answerer — prevents one-sided media.
    */
+  const syncScreenShareGuardFromRefs = useCallback(() => {
+    updateScreenShareGuard(
+      isSharingScreenRef.current,
+      screenTrackRef.current,
+      screenStreamRef.current,
+    );
+  }, []);
+
   const prepareLocalTracksForNegotiation = useCallback(
     async (pc, stream, peerId) => {
+      syncScreenShareGuardFromRefs();
+
       applyLocalTrackEnabledFlags();
 
       const audioTrack = getLiveLocalAudioTrack(stream);
@@ -781,7 +884,13 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       logSenderState(peerId, pc, 'prepareLocalTracksForNegotiation');
       setTimeout(() => logOutboundRtpStats(pc, peerId, 'post-prepare'), 1000);
     },
-    [applyLocalTrackEnabledFlags, resolveOutboundSender, rememberOutboundSender, clearOutboundSenderCache],
+    [
+      applyLocalTrackEnabledFlags,
+      resolveOutboundSender,
+      rememberOutboundSender,
+      clearOutboundSenderCache,
+      syncScreenShareGuardFromRefs,
+    ],
   );
 
   /** Re-bind live video to all peer senders after camera-off left replaceTrack(null). */
@@ -842,6 +951,21 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
   const repairOutboundSendersIfNeeded = useCallback(async () => {
     const stream = localStreamRef.current;
     if (!stream) return;
+    syncScreenShareGuardFromRefs();
+    if (screenRenegotiationInProgressRef.current) {
+      screenShareLog('[SCREEN-SEND] repairOutboundSenders skipped — screen renegotiation in flight');
+      return;
+    }
+    if (isScreenShareActive()) {
+      console.log('[RTC:SCREEN-FIX] repairOutboundSenders — screen-only rebind');
+      await Promise.all(
+        Object.entries(peerConnections.current).map(async ([peerId, pc]) => {
+          if (pc.signalingState === 'closed') return;
+          await bindScreenShareVideoSender(pc, peerId, resolveOutboundSender, rememberOutboundSender);
+        }),
+      );
+      return;
+    }
 
     applyLocalTrackEnabledFlags();
 
@@ -893,23 +1017,28 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
         if (changed) {
           mediaLog.info('signaling', '[REPAIR] Direction mismatch or change detected, queueing negotiation', { peerId });
           // Use 'negotiationneeded' label to consolidate with other triggers.
-          queueRenegotiationWhenStable(pc, peerId, async (pcArg, peerIdArg, labelArg) => {
-            const s = localStreamRef.current;
-            if (s) {
-              try {
-                await prepareLocalTracksForNegotiation(pcArg, s, peerIdArg);
-              } catch (e) {
-                mediaLog.warn('signaling', '[REPAIR] prepare failed', e?.message);
-              }
+          const s = localStreamRef.current;
+          if (s) {
+            try {
+              await prepareLocalTracksForNegotiation(pc, s, peerId);
+            } catch (e) {
+              mediaLog.warn('signaling', '[REPAIR] prepare failed', e?.message);
             }
-            return sendOffer(pcArg, peerIdArg, labelArg);
-          }, 'negotiationneeded');
+          }
+          await sendOffer(pc, peerId, 'negotiationneeded');
         }
 
         logSenderState(peerId, pc, 'repairOutboundSenders');
       }),
     );
-  }, [applyLocalTrackEnabledFlags, resolveOutboundSender, rememberOutboundSender, prepareLocalTracksForNegotiation, sendOffer]);
+  }, [
+    applyLocalTrackEnabledFlags,
+    resolveOutboundSender,
+    rememberOutboundSender,
+    prepareLocalTracksForNegotiation,
+    sendOffer,
+    syncScreenShareGuardFromRefs,
+  ]);
 
   /**
    * Answerer (joiner) must bind local tracks on correct senders + renegotiate.
@@ -917,6 +1046,11 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
    */
   const syncAnswererOutboundAfterMediaToggle = useCallback(async () => {
     if (answererOutboundSyncInProgress) return;
+    syncScreenShareGuardFromRefs();
+    if (isScreenShareActive()) {
+      console.log('[RTC:SCREEN-FIX] skipping answerer outbound sync — screen share active');
+      return;
+    }
     answererOutboundSyncInProgress = true;
     try {
       const localSocketId = socketRef.current?.id;
@@ -999,29 +1133,21 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
           }
 
           mediaLog.info('signaling', '[JOINER-OUTBOUND] renegotiation queued', { peer: peerId });
-          queueRenegotiationWhenStable(
-            pc,
-            peerId,
-            async (pcArg, peerIdArg, labelArg) => {
-              try {
-                await prepareLocalTracksForNegotiation(pcArg, stream, peerIdArg);
-              } catch (prepErr) {
-                mediaLog.warn('signaling', '[JOINER-OUTBOUND] prepare before offer failed', prepErr?.message);
-              }
-              const sent = await sendOffer(pcArg, peerIdArg, labelArg);
-              if (sent) {
-                setTimeout(() => logOutboundRtpStats(pcArg, peerIdArg, 'post-joiner-offer'), 2000);
-              }
-              return sent;
-            },
-            'answerer-media-toggle',
-          );
+          try {
+            await prepareLocalTracksForNegotiation(pc, stream, peerId);
+          } catch (prepErr) {
+            mediaLog.warn('signaling', '[JOINER-OUTBOUND] prepare before offer failed', prepErr?.message);
+          }
+          const sent = await sendOffer(pc, peerId, 'answerer-media-toggle');
+          if (sent) {
+            setTimeout(() => logOutboundRtpStats(pc, peerId, 'post-joiner-offer'), 2000);
+          }
         }),
       );
     } finally {
       answererOutboundSyncInProgress = false;
     }
-  }, [prepareLocalTracksForNegotiation, sendOffer, clearOutboundSenderCache]);
+  }, [prepareLocalTracksForNegotiation, sendOffer, clearOutboundSenderCache, syncScreenShareGuardFromRefs]);
 
   syncAnswererOutboundRef.current = syncAnswererOutboundAfterMediaToggle;
 
@@ -1046,19 +1172,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
           return;
         }
 
-        queueRenegotiationWhenStable(
-          pc,
-          peerId,
-          async (pcArg, peerIdArg, labelArg) => {
-            try {
-              await prepareLocalTracksForNegotiation(pcArg, stream, peerIdArg);
-            } catch (prepErr) {
-              mediaLog.warn('signaling', '[CAMERA-ON] prepare before offer failed', prepErr?.message);
-            }
-            return sendOffer(pcArg, peerIdArg, labelArg);
-          },
-          'camera-on',
-        );
+        await sendOffer(pc, peerId, 'camera-on');
       }),
     );
 
@@ -1339,6 +1453,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
         socket.emit('join-room', { roomId }, (response) => {
           if (response?.ok || response?.rejoined) {
             logMediaLifecycle('room re-joined after reconnect', { roomId, rejoined: response?.rejoined });
+            recoverRoomMediaAfterRejoinRef.current?.(response);
           } else if (response?.pending) {
             logMediaLifecycle('room re-join pending approval', { roomId });
           } else {
@@ -1405,6 +1520,10 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
   const pendingMediaBroadcastRef = useRef(false);
 
   const applyRemotePeerMediaState = useCallback((peerSocketId, message) => {
+    const isActivePresenter =
+      activePresenterSocketIdRef.current === peerSocketId ||
+      presenterRef.current?.socketId === peerSocketId;
+    const presentationStream = remoteScreenStreamsRef.current[peerSocketId];
     const pc = peerConnections.current[peerSocketId];
     if (pc) {
       pc.getReceivers().forEach((receiver) => {
@@ -1413,7 +1532,12 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
         if (track.kind === 'audio') {
           track.enabled = message.mic !== false;
         } else if (track.kind === 'video') {
-          track.enabled = message.video !== false;
+          const isPresentationTrack = presentationStream
+            ?.getVideoTracks()
+            .some((t) => t === track || t.id === track.id);
+          // Presenter's outbound video is the screen track — never mirror camera-off as disabled.
+          track.enabled =
+            isActivePresenter || isPresentationTrack ? true : message.video !== false;
         }
       });
     }
@@ -1422,7 +1546,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       ...prev,
       [peerSocketId]: {
         isMicOn: message.mic !== false,
-        isVideoOn: message.video !== false,
+        isVideoOn: isActivePresenter ? true : message.video !== false,
       },
     }));
   }, []);
@@ -1592,9 +1716,12 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
   const stopScreenShareRef = useRef(null);
 
   const routeRemoteVideoTrack = useCallback((targetSocketId, track) => {
-    const isPresenterPeer = presenterRef.current?.socketId === targetSocketId;
+    const isPresenterPeer =
+      activePresenterSocketIdRef.current === targetSocketId ||
+      presenterRef.current?.socketId === targetSocketId;
 
     if (isPresenterPeer) {
+      ensurePresentationReceiverTrack(track, targetSocketId);
       setRemoteScreenStreams((prev) => {
         // Always upsert — renegotiation can deliver a new track object with the same kind.
         const existing = prev[targetSocketId];
@@ -1679,20 +1806,31 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       }
 
       if (track.kind === 'video') {
-        // Log track state before routing — critical for black-screen diagnosis.
-        mediaLog.info('track', '[REMOTE-VIDEO] track state', {
-          peer: targetSocketId,
-          trackId: track.id,
-          readyState: track.readyState,
-          enabled: track.enabled,
-          muted: track.muted,
-          presenter: presenterRef.current?.socketId === targetSocketId,
-          alreadySeen: appliedRemoteTrackIdsRef.current[targetSocketId].has(track.id),
-        });
-
-        // Ensure track is enabled (remote tracks default to enabled=true but guard anyway).
-        if (!track.enabled) {
-          track.enabled = true;
+        const isPresenter =
+          activePresenterSocketIdRef.current === targetSocketId ||
+          presenterRef.current?.socketId === targetSocketId;
+        if (isPresenter) {
+          screenShareLog('[REMOTE-VIDEO] ontrack/promote path', {
+            peer: targetSocketId,
+            trackId: track.id,
+            readyState: track.readyState,
+            enabled: track.enabled,
+            muted: track.muted,
+          });
+          ensurePresentationReceiverTrack(track, targetSocketId);
+        } else {
+          mediaLog.info('track', '[REMOTE-VIDEO] track state', {
+            peer: targetSocketId,
+            trackId: track.id,
+            readyState: track.readyState,
+            enabled: track.enabled,
+            muted: track.muted,
+            presenter: false,
+            alreadySeen: appliedRemoteTrackIdsRef.current[targetSocketId].has(track.id),
+          });
+          if (!track.enabled) {
+            track.enabled = true;
+          }
         }
 
         routeRemoteVideoTrack(targetSocketId, track);
@@ -1713,7 +1851,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
     (pc, targetSocketId) => {
       pc.getReceivers().forEach((receiver) => {
         const track = receiver.track;
-        if (!track) return;
+        if (!track || track.readyState !== 'live') return;
         // Always re-apply on sync — stream may have been rebuilt after renegotiation.
         // Remove from applied set so applyRemoteTrack routes it fresh.
         if (track.kind === 'video') {
@@ -1733,7 +1871,12 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
         if (import.meta.env.DEV) {
           mediaLog.debug('peer', 'Reusing existing peer connection', targetSocketId);
         }
-        ensureLocalTracksOnPc(existing, stream);
+        const outgoingVideo = getOutgoingVideoTrack(
+          isSharingScreenRef.current,
+          screenTrackRef.current,
+          stream,
+        );
+        ensureLocalTracksOnPc(existing, stream, outgoingVideo);
         return existing;
       }
 
@@ -1748,7 +1891,12 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       }
 
       if (stream) {
-        ensureLocalTracksOnPc(pc, stream);
+        const outgoingVideo = getOutgoingVideoTrack(
+          isSharingScreenRef.current,
+          screenTrackRef.current,
+          stream,
+        );
+        ensureLocalTracksOnPc(pc, stream, outgoingVideo);
       }
 
       pc.onicecandidate = (event) => {
@@ -1763,28 +1911,48 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       };
 
       pc.ontrack = (event) => {
-        const { track, streams } = event;
-        if (!track) return;
-        mediaLog.info('track', '[REMOTE-VIDEO] ontrack fired', {
-          peer: targetSocketId,
-          kind: track.kind,
-          trackId: track.id,
-          readyState: track.readyState,
-          enabled: track.enabled,
-          streamCount: streams?.length,
-        });
-        applyRemoteTrack(targetSocketId, track);
-        track.onended = () => {
-          mediaLog.debug('track', `Remote ${track.kind} ended`, {
+        const { track, streams, receiver } = event;
+        const liveTrack = receiver?.track || track;
+        
+        if (!liveTrack || liveTrack.readyState !== 'live') return;
+
+        if (liveTrack.kind === 'video' && activePresenterSocketIdRef.current === targetSocketId) {
+          screenShareLog('[REMOTE-VIDEO] ontrack fired (presenter)', {
             peer: targetSocketId,
-            trackId: track.id,
+            trackId: liveTrack.id,
+            readyState: liveTrack.readyState,
+            enabled: liveTrack.enabled,
+            muted: liveTrack.muted,
+            streamCount: streams?.length,
+            signalingState: pc.signalingState,
+            iceState: pc.iceConnectionState,
           });
-          appliedRemoteTrackIdsRef.current[targetSocketId]?.delete(track.id);
-          remoteListenerTrackIdsRef.current[targetSocketId]?.delete(track.id);
+        } else if (liveTrack.kind !== 'video') {
+          mediaLog.info('track', '[REMOTE-VIDEO] ontrack fired', {
+            peer: targetSocketId,
+            kind: liveTrack.kind,
+            trackId: liveTrack.id,
+          });
+        }
+        applyRemoteTrack(targetSocketId, liveTrack);
+        liveTrack.onended = () => {
+          mediaLog.debug('track', `Remote ${liveTrack.kind} ended`, {
+            peer: targetSocketId,
+            trackId: liveTrack.id,
+          });
+          appliedRemoteTrackIdsRef.current[targetSocketId]?.delete(liveTrack.id);
+          remoteListenerTrackIdsRef.current[targetSocketId]?.delete(liveTrack.id);
         };
       };
 
       pc.onnegotiationneeded = async () => {
+        if (screenRenegotiationInProgressRef.current || isScreenShareActive()) {
+          screenShareLog('[RENEGOTIATION] negotiationneeded suppressed — screen renegotiation in flight', {
+            peer: targetSocketId,
+            signalingState: pc.signalingState,
+          });
+          return;
+        }
         // Allow BOTH peers to renegotiate — not just the initial offerer.
         // This is critical for joiner camera reacquire: when joiner calls addTrack(videoTrack),
         // onnegotiationneeded fires and the joiner must send an offer to push video RTP.
@@ -1794,25 +1962,17 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
           signalingState: pc.signalingState,
         });
 
-        // CRITICAL FIX: Use queueRenegotiationWhenStable to ensure we don't drop offers
-        // if this fires during an active negotiation cycle.
-        queueRenegotiationWhenStable(pc, targetSocketId, async (pcArg, peerIdArg, labelArg) => {
-          const stream = localStreamRef.current;
-          if (stream) {
-            try {
-              // Re-run prepare inside the task so direction is sendrecv in the offer.
-              await prepareLocalTracksForNegotiation(pcArg, stream, peerIdArg);
-            } catch (prepErr) {
-              mediaLog.warn('signaling', '[VIDEO-NEGOTIATION] prepareLocalTracks failed', prepErr?.message);
-            }
+        const stream = localStreamRef.current;
+        if (stream) {
+          try {
+            await prepareLocalTracksForNegotiation(pc, stream, targetSocketId);
+          } catch (prepErr) {
+            mediaLog.warn('signaling', '[VIDEO-NEGOTIATION] prepareLocalTracks failed', prepErr?.message);
           }
-          const sent = await sendOffer(pcArg, peerIdArg, labelArg);
-          if (sent) {
-            mediaLog.info('signaling', '[VIDEO-NEGOTIATION] completed — offer sent', peerIdArg);
-          }
-        }, 'negotiationneeded');
+        }
+        await sendOffer(pc, targetSocketId, 'negotiationneeded');
       };
-      
+
       pc.oniceconnectionstatechange = () => {
         mediaLog.info('media', '[DEBUG-ICE] ice state', {
           peerId: targetSocketId,
@@ -1838,7 +1998,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
           console.log('[DEBUG-MEDIA] connection reached connected', { peerId: targetSocketId });
           ensureMediaDataChannelRef.current(pc, targetSocketId);
         }
-        
+
         if (pc.connectionState === 'connected' && hasLiveLocalStream()) {
           const localSocketId = socketRef.current?.id;
           const isJoinerPeer = localSocketId && !shouldInitiateOffer(localSocketId, targetSocketId);
@@ -1859,7 +2019,31 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
           // Re-sync remote tracks — catches any ontrack events that fired before React
           // state was ready, or tracks that arrived during ICE negotiation.
-          queueMicrotask(() => syncReceivers(pc, targetSocketId));
+          queueMicrotask(() => {
+            if (activePresenterSocketIdRef.current === targetSocketId) {
+              const videoReceiver = pc.getReceivers().find((r) => r.track?.kind === 'video');
+              if (videoReceiver?.track) {
+                console.log('[RTC:SCREEN-REMOTE] receiver track', {
+                  trackId: videoReceiver.track.id,
+                  readyState: videoReceiver.track.readyState,
+                  enabled: videoReceiver.track.enabled,
+                });
+              }
+              if (videoReceiver?.track?.readyState === 'live') {
+                console.log('[RTC:SCREEN-REMOTE] promoting existing receiver track to presentation');
+                ensurePresentationReceiverTrack(videoReceiver.track, targetSocketId);
+                appliedRemoteTrackIdsRef.current[targetSocketId]?.delete(videoReceiver.track.id);
+                applyRemoteTrack(targetSocketId, videoReceiver.track);
+              }
+            }
+            syncReceivers(pc, targetSocketId);
+            if (
+              activePresenterSocketIdRef.current === targetSocketId ||
+              presenterRef.current?.socketId === targetSocketId
+            ) {
+              syncPresenterRemoteMediaRef.current?.(targetSocketId);
+            }
+          });
 
           if (import.meta.env.DEV) {
             // Log transceiver directions so we can verify sendrecv is set correctly.
@@ -1957,12 +2141,23 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
     async (newTrack) => {
       const stream = localStreamRef.current;
       const screenStream = screenStreamRef.current;
+      const isScreenStart = Boolean(newTrack) && isSharingScreenRef.current;
+      syncScreenShareGuardFromRefs();
+
+      screenRenegotiationInProgressRef.current = isScreenStart;
+      if (isScreenStart) {
+        screenShareLog('[SCREEN-SEND] replaceOutgoingVideo start', {
+          screenTrackId: newTrack?.id,
+          peers: Object.keys(peerConnections.current).length,
+        });
+      }
 
       const tasks = Object.entries(peerConnections.current).map(async ([targetSocketId, pc]) => {
-        let sender = getVideoSender(pc);
+        let sender = resolveOutboundSender(pc, targetSocketId, 'video') ?? getVideoSender(pc);
         if (!sender && newTrack && stream) {
           const outbound = isSharingScreenRef.current && screenStream ? screenStream : stream;
           sender = pc.addTrack(newTrack, outbound);
+          rememberOutboundSender(targetSocketId, 'video', sender);
           mediaLog.debug('screen', 'Video sender added', targetSocketId);
         }
         if (!sender) {
@@ -1976,21 +2171,106 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
             enabled: newTrack?.enabled,
           });
         }
+        if (isScreenStart && newTrack) {
+          console.log('[RTC:SCREEN-FIX] replaceTrack called', {
+            senderTrackBefore: sender.track?.id,
+            newTrack: newTrack.id,
+            readyState: newTrack.readyState,
+          });
+        }
         await sender.replaceTrack(newTrack);
+        rememberOutboundSender(targetSocketId, 'video', sender);
         if (newTrack) {
           newTrack.enabled = isSharingScreenRef.current ? true : isVideoOnRef.current;
         }
-        mediaLog.debug('screen', 'Video track replaced', {
+        const tc = pc.getTransceivers().find((t) => t.sender === sender);
+        if (isScreenStart && tc) {
+          console.log('[RTC:SCREEN-FIX] transceiver state', {
+            direction: tc.direction,
+            currentDirection: tc.currentDirection,
+            mid: tc.mid,
+          });
+        }
+        if (
+          newTrack &&
+          tc &&
+          tc.direction !== 'sendrecv' &&
+          tc.direction !== 'sendonly'
+        ) {
+          tc.direction = 'sendrecv';
+        }
+        if (isScreenStart) {
+          console.log('[RTC:SCREEN-FIX] sender.track after negotiate', {
+            trackId: sender.track?.id,
+            isScreenTrack: sender.track === screenTrackRef.current,
+            readyState: sender.track?.readyState,
+          });
+        }
+        mediaLog.info('screen', '[SCREEN-SEND] replaceTrack complete', {
           peer: targetSocketId,
           sharing: !!newTrack,
-          enabled: newTrack?.enabled,
-          senderHasTrack: !!sender.track,
+          screenTrackId: newTrack?.id,
+          senderTrackId: sender.track?.id,
+          senderTrackMatches: sender.track === newTrack,
+          senderTrackReadyState: sender.track?.readyState,
+          transceiverDirection: tc?.direction,
+          transceiverCurrentDirection: tc?.currentDirection,
         });
       });
       await Promise.all(tasks);
-      await renegotiateAll(newTrack ? 'screen-share-start' : 'screen-share-stop');
+
+      const label = newTrack ? 'screen-share-start' : 'screen-share-stop';
+      const runRenegotiationOffer = async (pcArg, peerIdArg, labelArg) => {
+        screenShareLog('[RENEGOTIATION] start', {
+          peer: peerIdArg,
+          label: labelArg,
+          signalingState: pcArg.signalingState,
+          iceState: pcArg.iceConnectionState,
+        });
+        if (stream && isSharingScreenRef.current && screenTrackRef.current) {
+          syncScreenShareGuardFromRefs();
+          await bindScreenShareVideoSender(
+            pcArg,
+            peerIdArg,
+            resolveOutboundSender,
+            rememberOutboundSender,
+          );
+        } else if (stream) {
+          try {
+            await prepareLocalTracksForNegotiation(pcArg, stream, peerIdArg);
+          } catch (err) {
+            mediaLog.warn('signaling', `${labelArg} prepare failed`, err?.message);
+          }
+        }
+        let sent = await sendOffer(pcArg, peerIdArg, labelArg);
+        screenShareLog('[RENEGOTIATION] end', {
+          peer: peerIdArg,
+          label: labelArg,
+          sent,
+          signalingState: pcArg.signalingState,
+          iceState: pcArg.iceConnectionState,
+        });
+        return sent;
+      };
+
+      try {
+        await Promise.all(
+          Object.entries(peerConnections.current).map(async ([peerId, pc]) => {
+            if (pc.signalingState === 'closed') return;
+            await runRenegotiationOffer(pc, peerId, label);
+          }),
+        );
+      } finally {
+        screenRenegotiationInProgressRef.current = false;
+      }
     },
-    [renegotiateAll],
+    [
+      resolveOutboundSender,
+      rememberOutboundSender,
+      prepareLocalTracksForNegotiation,
+      sendOffer,
+      syncScreenShareGuardFromRefs,
+    ],
   );
 
   const startScreenShare = useCallback(async () => {
@@ -2011,11 +2291,34 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       setScreenStream(displayStream);
       screenStreamRef.current = displayStream;
       isSharingScreenRef.current = true;
+      screenTrack.enabled = true;
+      updateScreenShareGuard(true, screenTrack, displayStream);
+
+      const localPresenter = {
+        socketId: activeSocket.id,
+        userId: null,
+        userName: null,
+      };
+      activePresenterSocketIdRef.current = activeSocket.id;
+      presenterRef.current = localPresenter;
+      setPresenter(localPresenter);
+      if (roomId) {
+        patchRoomSession(roomId, {
+          presenterSocketId: activeSocket.id,
+          presenterUserId: null,
+          presenterName: null,
+        });
+      }
+
+      await new Promise((resolve) => {
+        activeSocket.emit('start-screen-share', { roomId }, (response) => {
+          resolve(response);
+        });
+        setTimeout(resolve, 3000);
+      });
 
       await replaceOutgoingVideo(screenTrack);
       broadcastMediaState();
-
-      activeSocket.emit('start-screen-share', { roomId });
 
       screenTrack.onended = () => {
         stopScreenShareRef.current?.();
@@ -2031,6 +2334,12 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
   const stopScreenShare = useCallback(async () => {
     isSharingScreenRef.current = false;
+    updateScreenShareGuard(false, null, null);
+    if (presenterRef.current?.socketId === socketRef.current?.id) {
+      activePresenterSocketIdRef.current = null;
+      presenterRef.current = null;
+      setPresenter(null);
+    }
 
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -2225,6 +2534,11 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
   }, []);
 
   const syncOutboundAfterCameraOff = useCallback(async () => {
+    syncScreenShareGuardFromRefs();
+    if (isScreenShareActive()) {
+      console.log('[RTC:SCREEN-FIX] skipping video sender clear — screen share active');
+      return;
+    }
     const localSocketId = socketRef.current?.id;
     const stream = localStreamRef.current;
     if (!localSocketId || !stream) return;
@@ -2242,19 +2556,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
           return;
         }
 
-        queueRenegotiationWhenStable(
-          pc,
-          peerId,
-          async (pcArg, peerIdArg, labelArg) => {
-            try {
-              await prepareLocalTracksForNegotiation(pcArg, stream, peerIdArg);
-            } catch (prepErr) {
-              mediaLog.warn('signaling', '[CAMERA-OFF] prepare before offer failed', prepErr?.message);
-            }
-            return sendOffer(pcArg, peerIdArg, labelArg);
-          },
-          'camera-off',
-        );
+        await sendOffer(pc, peerId, 'camera-off');
       }),
     );
 
@@ -2270,30 +2572,56 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
     sendOffer,
     clearOutboundSenderCache,
     syncAnswererOutboundAfterMediaToggle,
+    syncScreenShareGuardFromRefs,
   ]);
 
   const promotePresenterRemoteVideo = useCallback((sharerSocketId) => {
+    const pc = peerConnections.current[sharerSocketId];
+    const receiverVideo = pc
+      ?.getReceivers()
+      .map((r) => r.track)
+      .find((t) => t?.kind === 'video' && t.readyState === 'live');
+    if (receiverVideo && ensurePresentationReceiverTrack(receiverVideo, sharerSocketId)) {
+      appliedRemoteTrackIdsRef.current[sharerSocketId]?.delete(receiverVideo.id);
+      applyRemoteTrack(sharerSocketId, receiverVideo);
+      screenShareLog('[PRESENTATION] promoted from receiver', {
+        peer: sharerSocketId,
+        trackId: receiverVideo.id,
+      });
+      return;
+    }
+
+    const cam = remoteStreamsRef.current[sharerSocketId];
+    const videoTrack = cam?.getVideoTracks()[0];
+    if (!videoTrack || videoTrack.readyState !== 'live') return;
+    if (!ensurePresentationReceiverTrack(videoTrack, sharerSocketId)) return;
+
+    const audioOnly = new MediaStream(cam.getAudioTracks());
+    const nextScreen = upsertTrackOnStream(
+      remoteScreenStreamsRef.current[sharerSocketId],
+      videoTrack,
+    );
+
+    setRemoteScreenStreams((screenPrev) => ({
+      ...screenPrev,
+      [sharerSocketId]: nextScreen,
+    }));
     setRemoteStreams((prev) => {
-      const cam = prev[sharerSocketId];
-      const videoTrack = cam?.getVideoTracks()[0];
-      if (!videoTrack) return prev;
-
-      const audioOnly = new MediaStream(cam.getAudioTracks());
-      const nextCam = { ...prev };
+      const existing = prev[sharerSocketId];
+      if (!existing) return prev;
       if (audioOnly.getTracks().length > 0) {
-        nextCam[sharerSocketId] = audioOnly;
-      } else {
-        delete nextCam[sharerSocketId];
+        return { ...prev, [sharerSocketId]: audioOnly };
       }
-
-      setRemoteScreenStreams((screenPrev) => ({
-        ...screenPrev,
-        [sharerSocketId]: upsertTrackOnStream(screenPrev[sharerSocketId], videoTrack),
-      }));
-
-      return nextCam;
+      const next = { ...prev };
+      delete next[sharerSocketId];
+      return next;
     });
-  }, []);
+
+    screenShareLog('[PRESENTATION] promoted from camera stream fallback', {
+      peer: sharerSocketId,
+      trackId: videoTrack.id,
+    });
+  }, [applyRemoteTrack]);
 
   const demotePresenterRemoteVideo = useCallback((sharerSocketId) => {
     setRemoteScreenStreams((prev) => {
@@ -2316,6 +2644,60 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
     });
   }, []);
 
+  const syncPresenterRemoteMedia = useCallback(
+    (sharerSocketId, retryAttempt = 0) => {
+      if (!sharerSocketId || presenterRef.current?.socketId !== sharerSocketId) {
+        return;
+      }
+
+      const pc = peerConnections.current[sharerSocketId];
+      let hasLiveVideo = false;
+      if (pc) {
+        pc.getReceivers().forEach((receiver) => {
+          const track = receiver.track;
+          if (track?.kind === 'video') {
+            if (track.readyState === 'live') {
+              hasLiveVideo = true;
+            }
+            appliedRemoteTrackIdsRef.current[sharerSocketId]?.delete(track.id);
+            applyRemoteTrack(sharerSocketId, track);
+          }
+        });
+      }
+
+      promotePresenterRemoteVideo(sharerSocketId);
+
+      if (pc) {
+        pc.getReceivers().forEach((receiver) => {
+          const track = receiver.track;
+          if (track?.kind === 'video' && presenterRef.current?.socketId === sharerSocketId) {
+            track.enabled = true;
+          }
+        });
+      }
+
+      if (!hasLiveVideo && retryAttempt < 6) {
+        screenShareLog('[PRESENTATION] no live receiver video — retry scheduled', {
+          peer: sharerSocketId,
+          attempt: retryAttempt + 1,
+        });
+        setTimeout(
+          () => syncPresenterRemoteMediaRef.current?.(sharerSocketId, retryAttempt + 1),
+          350 * (retryAttempt + 1),
+        );
+      } else if (hasLiveVideo) {
+        screenShareLog('[PRESENTATION] sync complete', {
+          peer: sharerSocketId,
+          attempt: retryAttempt,
+        });
+      }
+    },
+    [applyRemoteTrack, promotePresenterRemoteVideo],
+  );
+
+  const syncPresenterRemoteMediaRef = useRef(syncPresenterRemoteMedia);
+  syncPresenterRemoteMediaRef.current = syncPresenterRemoteMedia;
+
   useEffect(() => {
     if (!socket || !roomId) {
       signalingHandlersRef.current = {};
@@ -2324,41 +2706,66 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
     const localSocketId = socket.id;
 
-    const reroutePresenterVideoTracks = (sharerSocketId) => {
-      const pc = peerConnections.current[sharerSocketId];
-      if (!pc) return;
-      pc.getReceivers().forEach((receiver) => {
-        const track = receiver.track;
-        if (track?.kind === 'video') {
-          appliedRemoteTrackIdsRef.current[sharerSocketId]?.delete(track.id);
-          applyRemoteTrack(sharerSocketId, track);
-        }
-      });
-    };
-
     const handleScreenStatus = (status) => {
       if (status.active) {
+        const prevPresenter = presenterRef.current;
         const nextPresenter = {
           socketId: status.sharerSocketId,
           userId: status.sharerUserId,
           userName: status.sharerName,
         };
+
+        if (
+          prevPresenter?.socketId &&
+          prevPresenter.socketId !== nextPresenter.socketId &&
+          prevPresenter.userId &&
+          prevPresenter.userId === nextPresenter.userId
+        ) {
+          demotePresenterRemoteVideo(prevPresenter.socketId);
+          setRemoteScreenStreams((prev) => {
+            const next = { ...prev };
+            delete next[prevPresenter.socketId];
+            return next;
+          });
+          if (prevPresenter.socketId !== localSocketId) {
+            removePeer(prevPresenter.socketId);
+          }
+        }
+
+        activePresenterSocketIdRef.current = nextPresenter.socketId;
         presenterRef.current = nextPresenter;
         setPresenter(nextPresenter);
         rememberPeerName(status.sharerSocketId, status.sharerName);
-        if (status.sharerSocketId !== localSocketId) {
-          queueMicrotask(() => {
-            const pc = peerConnections.current[status.sharerSocketId];
-            if (pc) {
-              syncReceivers(pc, status.sharerSocketId);
-            }
-            reroutePresenterVideoTracks(status.sharerSocketId);
+        screenShareLog('[PRESENTATION] status active', {
+          sharerSocketId: status.sharerSocketId,
+          localSocketId,
+        });
+        if (roomId) {
+          patchRoomSession(roomId, {
+            presenterSocketId: nextPresenter.socketId,
+            presenterUserId: nextPresenter.userId,
+            presenterName: nextPresenter.userName,
           });
+        }
+        if (status.sharerSocketId !== localSocketId) {
+          syncPresenterRemoteMedia(status.sharerSocketId);
+          queueMicrotask(() => syncPresenterRemoteMedia(status.sharerSocketId));
         }
       } else {
         const prevPresenter = presenterRef.current;
+        activePresenterSocketIdRef.current = null;
         presenterRef.current = null;
         setPresenter(null);
+        if (roomId) {
+          patchRoomSession(roomId, {
+            presenterSocketId: null,
+            presenterUserId: null,
+            presenterName: null,
+          });
+        }
+        screenShareLog('[PRESENTATION] status inactive', {
+          prevSharer: prevPresenter?.socketId,
+        });
         if (prevPresenter?.socketId && prevPresenter.socketId !== localSocketId) {
           demotePresenterRemoteVideo(prevPresenter.socketId);
         }
@@ -2372,7 +2779,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
     const handleOffer = async ({ fromSocketId, fromUserName, sdp }) => {
       mediaLog.info('media', '[DEBUG-ANSWER] 1 entered', { from: fromSocketId });
-      
+
       mediaLog.info('media', '[DEBUG] offer received', {
         from: fromSocketId,
         sdpType: sdp?.type,
@@ -2428,6 +2835,18 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
         mediaLog.info('media', '[DEBUG-ANSWER] 4 remote desc set');
 
+        const offerFromPresenter =
+          activePresenterSocketIdRef.current === fromSocketId ||
+          presenterRef.current?.socketId === fromSocketId;
+        if (offerFromPresenter) {
+          screenShareLog('[PRESENTATION] offer from presenter — receiver sync', {
+            peer: fromSocketId,
+            signalingState: pc.signalingState,
+            iceState: pc.iceConnectionState,
+          });
+          syncReceivers(pc, fromSocketId);
+        }
+
         if (pc.signalingState === 'have-remote-offer') {
           try {
             await prepareLocalTracksForNegotiation(pc, stream, fromSocketId);
@@ -2472,6 +2891,16 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
             isRenegotiation ? 'Renegotiation answer sent' : 'Answer sent',
             fromSocketId,
           );
+
+          queueMicrotask(() => {
+            syncReceivers(pc, fromSocketId);
+            if (
+              activePresenterSocketIdRef.current === fromSocketId ||
+              presenterRef.current?.socketId === fromSocketId
+            ) {
+              syncPresenterRemoteMediaRef.current?.(fromSocketId);
+            }
+          });
         }
       } catch (err) {
         mediaLog.error('media', '[DEBUG-ANSWER] handleOffer threw', {
@@ -2547,7 +2976,25 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
         // After renegotiation answer (e.g. joiner enabled camera), sync receivers
         // to re-route any remote video tracks into remoteStreams.
         // syncReceivers clears the video dedup guard so the track is re-applied.
-        queueMicrotask(() => syncReceivers(pc, fromSocketId));
+        queueMicrotask(() => {
+          syncReceivers(pc, fromSocketId);
+          if (
+            activePresenterSocketIdRef.current === fromSocketId ||
+            presenterRef.current?.socketId === fromSocketId
+          ) {
+            syncPresenterRemoteMediaRef.current?.(fromSocketId);
+          }
+        });
+
+        if (
+          activePresenterSocketIdRef.current === fromSocketId ||
+          presenterRef.current?.socketId === fromSocketId
+        ) {
+          screenShareLog('[PRESENTATION] answer received from presenter peer', {
+            peer: fromSocketId,
+            signalingState: pc.signalingState,
+          });
+        }
 
         if (import.meta.env.DEV) {
           setTimeout(async () => {
@@ -2613,12 +3060,15 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
     awaitLocalStreamForSignaling,
     removePeer,
     rememberPeerName,
+    applyRemoteTrack,
     promotePresenterRemoteVideo,
     demotePresenterRemoteVideo,
+    syncPresenterRemoteMedia,
     prepareLocalTracksForNegotiation,
     broadcastMediaState,
     ensureMediaDataChannel,
     syncReceivers,
+    [],
   ]);
 
   useEffect(() => {
@@ -2726,10 +3176,159 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
   connectToPeerRef.current = connectToPeer;
 
+  const syncLocalMediaStateFromLiveTracks = useCallback(() => {
+    const stream = localStreamRef.current;
+    const audioTrack = getLiveLocalAudioTrack(stream);
+    const cameraTrack = getLiveLocalVideoTrack(stream);
+    const mic = audioTrack ? audioTrack.enabled : isMicOnRef.current;
+    const video =
+      isSharingScreenRef.current && screenTrackRef.current?.readyState === 'live'
+        ? true
+        : (cameraTrack ? cameraTrack.enabled : isVideoOnRef.current);
+
+    isMicOnRef.current = mic;
+    isVideoOnRef.current = video;
+    setIsMicOn(mic);
+    setIsVideoOn(video);
+
+    if (audioTrack) {
+      audioTrack.enabled = mic;
+    }
+    if (cameraTrack && !isSharingScreenRef.current) {
+      cameraTrack.enabled = video;
+    }
+    if (screenTrackRef.current?.readyState === 'live') {
+      screenTrackRef.current.enabled = true;
+    }
+
+    screenShareLog('[RECONNECT] local media flags synced from live tracks', {
+      mic,
+      video,
+      sharing: isSharingScreenRef.current,
+      audioLive: audioTrack?.readyState === 'live',
+      cameraLive: cameraTrack?.readyState === 'live',
+    });
+  }, []);
+
+  const resyncAllPeerMedia = useCallback(async () => {
+    screenShareLog('[RECONNECT] resyncAllPeerMedia start', {
+      peers: Object.keys(peerConnections.current).length,
+      presenter: activePresenterSocketIdRef.current,
+    });
+
+    syncLocalMediaStateFromLiveTracks();
+
+    const presenterId = activePresenterSocketIdRef.current;
+
+    Object.entries(peerConnections.current).forEach(([peerId, pc]) => {
+      if (pc.signalingState === 'closed') return;
+
+      pc.getReceivers().forEach((receiver) => {
+        const track = receiver.track;
+        if (!track || track.readyState !== 'live') return;
+        if (track.kind === 'audio') {
+          if (!track.enabled) track.enabled = true;
+        } else if (track.kind === 'video') {
+          if (presenterId === peerId) {
+            ensurePresentationReceiverTrack(track, peerId);
+          } else if (!track.enabled) {
+            track.enabled = true;
+          }
+        }
+      });
+
+      syncReceivers(pc, peerId);
+      if (presenterId === peerId) {
+        syncPresenterRemoteMedia(peerId);
+      }
+    });
+
+    await repairOutboundSendersIfNeeded();
+    broadcastMediaState();
+
+    screenShareLog('[RECONNECT] resyncAllPeerMedia complete');
+  }, [
+    syncLocalMediaStateFromLiveTracks,
+    syncReceivers,
+    syncPresenterRemoteMedia,
+    repairOutboundSendersIfNeeded,
+    broadcastMediaState,
+  ]);
+
+  const recoverRoomMediaAfterRejoin = useCallback(
+    async (response) => {
+      if (!roomId) return;
+      const socket = socketRef.current;
+      if (!socket?.id) return;
+
+      screenShareLog('[RECONNECT] recover start', {
+        rejoined: response?.rejoined,
+        socketId: socket.id,
+        prevSocketId: lastKnownSocketIdRef.current,
+      });
+
+      const socketChanged =
+        lastKnownSocketIdRef.current && lastKnownSocketIdRef.current !== socket.id;
+
+      if (socketChanged) {
+        Object.keys(peerConnections.current).forEach((peerId) => removePeer(peerId));
+        peersInitiatedRef.current.clear();
+        negotiatedPeersRef.current.clear();
+        makingOfferRef.current.clear();
+        resetConferencingSession(roomId);
+        conferencingSession.hasStarted = false;
+      }
+
+      lastKnownSocketIdRef.current = socket.id;
+
+      if (streamHasLiveTracks(localMediaSingleton.stream)) {
+        syncLocalStreamFromSingleton();
+      }
+      syncLocalMediaStateFromLiveTracks();
+
+      const activeUsers = Array.isArray(response?.activeUsers) ? response.activeUsers : [];
+      if (activeUsers.length > 0) {
+        await startConferencingRef.current?.(activeUsers);
+      }
+
+      await resyncAllPeerMedia();
+
+      if (isSharingScreenRef.current && screenTrackRef.current?.readyState === 'live') {
+        screenShareLog('[RECONNECT] re-pushing screen track');
+        await replaceOutgoingVideo(screenTrackRef.current);
+      }
+
+      const presenterId = activePresenterSocketIdRef.current;
+      if (presenterId && presenterId !== socket.id) {
+        syncPresenterRemoteMedia(presenterId);
+      }
+    },
+    [
+      roomId,
+      removePeer,
+      syncLocalStreamFromSingleton,
+      syncLocalMediaStateFromLiveTracks,
+      resyncAllPeerMedia,
+      replaceOutgoingVideo,
+      syncPresenterRemoteMedia,
+    ],
+  );
+
+  const recoverRoomMediaAfterRejoinRef = useRef(recoverRoomMediaAfterRejoin);
+  recoverRoomMediaAfterRejoinRef.current = recoverRoomMediaAfterRejoin;
+
   const startConferencing = useCallback(
     async (activeUsers) => {
       const activeSocket = socketRef.current;
       if (!activeSocket || !Array.isArray(activeUsers) || !roomId) return;
+
+      const socketChanged =
+        lastKnownSocketIdRef.current && lastKnownSocketIdRef.current !== activeSocket.id;
+      if (socketChanged) {
+        resetConferencingSession(roomId);
+        conferencingSession.hasStarted = false;
+      }
+      lastKnownSocketIdRef.current = activeSocket.id;
 
       const remoteSocketIds = activeUsers
         .map((p) => p?.socketId)
@@ -2748,12 +3347,14 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
 
       // Bug 4 fix: also verify that peer connections for the expected peers actually exist;
       // if they were torn down (e.g. Strict Mode remount), allow reconferencing.
-      const hasLivePeerConnections = remoteSocketIds.some(
-        (id) => {
-          const pc = peerConnections.current[id];
-          return pc && !['failed', 'closed'].includes(pc.connectionState);
-        },
-      );
+      const hasLivePeerConnections = remoteSocketIds.some((id) => {
+        const pc = peerConnections.current[id];
+        return (
+          pc &&
+          !['failed', 'closed'].includes(pc.connectionState) &&
+          pc.connectionState === 'connected'
+        );
+      });
       const peersExpected = remoteSocketIds.length > 0;
 
       if (
@@ -2794,10 +3395,27 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
             if (shouldInitiateOffer(activeSocket.id, peer.socketId)) {
               await connectToPeer(peer.socketId, peer.name);
             } else {
-              mediaLog.debug('signaling', 'Awaiting offer from peer', peer.socketId);
+              const pc = peerConnections.current[peer.socketId];
+              if (
+                pc &&
+                !['failed', 'closed'].includes(pc.connectionState)
+              ) {
+                syncReceivers(pc, peer.socketId);
+                if (activePresenterSocketIdRef.current === peer.socketId) {
+                  syncPresenterRemoteMedia(peer.socketId);
+                }
+                broadcastMediaState();
+                screenShareLog('[RECONNECT] resynced existing answerer peer', {
+                  peer: peer.socketId,
+                  connectionState: pc.connectionState,
+                });
+              } else {
+                mediaLog.debug('signaling', 'Awaiting offer from peer', peer.socketId);
+              }
             }
           }
 
+          await resyncAllPeerMedia();
           conferencingSession.hasStarted = true;
         } finally {
           conferencingSession.bootstrapPromise = null;
@@ -2807,8 +3425,10 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       return conferencingSession.bootstrapPromise;
     },
     // Bug 2 fix: initLocalStream removed — accessed via initLocalStreamRef.current() inside
-    [roomId, rememberPeerName, connectToPeer, removePeer],
+    [roomId, rememberPeerName, connectToPeer, removePeer, resyncAllPeerMedia, syncReceivers, syncPresenterRemoteMedia, broadcastMediaState],
   );
+
+  startConferencingRef.current = startConferencing;
 
   const logToggleTrackState = useCallback((label, track, peerId, sender) => {
     if (!import.meta.env.DEV) return;
@@ -3098,6 +3718,7 @@ export const useWebRTC = (roomId, initialMicOn = false, initialVideoOn = false) 
       peersInitiatedRef.current.clear();
       peerSenderSlotsRef.current = {};
       isSharingScreenRef.current = false;
+      updateScreenShareGuard(false, null, null);
       // Do not clear videoAcquirePromise here — Strict Mode remount must not abort in-flight gUM.
       videoRetryFailed = false;
       videoCameraInUse = false;

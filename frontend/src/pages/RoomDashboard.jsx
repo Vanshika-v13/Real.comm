@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useRoom } from '../context/RoomContext';
 import { useAuth } from '../context/AuthContext';
 import PreJoinScreen from '../components/PreJoinScreen';
-import { readRoomSession } from '../utils/roomSessionStorage';
+import { readRoomSession, patchRoomSession } from '../utils/roomSessionStorage';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useVoiceActivity } from '../hooks/useVoiceActivity';
 import { useFiles } from '../hooks/useFiles';
@@ -86,8 +86,21 @@ const RoomMeetingView = ({ roomId, initialMicOn, initialVideoOn }) => {
     socket.emit('get-raised-hands', { roomId });
 
     const onChatHistory = (history) => {
-      if (Array.isArray(history)) {
-        setChatMessages(history);
+      if (!Array.isArray(history)) return;
+      setChatMessages(history);
+      const session = readRoomSession(roomId);
+      const lastReadMs = session?.lastReadChatAt
+        ? new Date(session.lastReadChatAt).getTime()
+        : 0;
+      if (lastReadMs > 0) {
+        const unread = history.filter((m) => {
+          const msgTime = new Date(m.createdAt || m.timestamp || 0).getTime();
+          return msgTime > lastReadMs && m.sender?.userId !== user?.id;
+        }).length;
+        setUnreadChat(unread);
+        patchRoomSession(roomId, { unreadChat: unread });
+      } else if (typeof session?.unreadChat === 'number' && session.unreadChat > 0) {
+        setUnreadChat(session.unreadChat);
       }
     };
 
@@ -99,7 +112,11 @@ const RoomMeetingView = ({ roomId, initialMicOn, initialVideoOn }) => {
       });
       const isOwn = message.sender?.userId === user?.id;
       if (!showChatRef.current && !isOwn) {
-        setUnreadChat((count) => count + 1);
+        setUnreadChat((count) => {
+          const next = count + 1;
+          patchRoomSession(roomId, { unreadChat: next });
+          return next;
+        });
       }
     };
 
@@ -213,10 +230,21 @@ const RoomMeetingView = ({ roomId, initialMicOn, initialVideoOn }) => {
 
   const handleToggleChat = useCallback(() => {
     setShowChat((open) => {
-      if (!open) setUnreadChat(0);
+      if (!open) {
+        setUnreadChat(0);
+        patchRoomSession(roomId, { unreadChat: 0, lastReadChatAt: new Date().toISOString() });
+      }
       return !open;
     });
-  }, []);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    const session = readRoomSession(roomId);
+    if (typeof session?.unreadChat === 'number' && session.unreadChat > 0) {
+      setUnreadChat(session.unreadChat);
+    }
+  }, [roomId]);
 
   const handleFileUpload = useCallback(async (file) => {
     try {
@@ -462,7 +490,7 @@ const RoomMeetingView = ({ roomId, initialMicOn, initialVideoOn }) => {
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 relative overflow-hidden flex flex-col gap-4 sm:gap-6 min-h-0">
+        <div className="flex-1 p-3 sm:p-6 pb-28 sm:pb-32 relative overflow-hidden flex flex-col gap-3 sm:gap-6 min-h-0 max-w-full">
           <AnimatePresence mode="wait">
             {isAnySharing ? (
               <motion.div
@@ -470,16 +498,16 @@ const RoomMeetingView = ({ roomId, initialMicOn, initialVideoOn }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="flex-1 flex flex-col gap-4 min-h-0"
+                className="flex-1 flex flex-col gap-3 sm:gap-4 min-h-0 max-w-full overflow-hidden"
               >
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-0 max-w-full overflow-hidden">
                   <ScreenShareView
                     stream={activeScreenStream}
                     presenterName={isMeSharing ? 'You' : presenter.userName}
                   />
                 </div>
-                <div className="h-32 sm:h-40 flex gap-3 overflow-x-auto pb-2 custom-scrollbar shrink-0">
-                  <div className="min-w-[180px] sm:min-w-[240px]">
+                <div className="max-h-[38vh] sm:max-h-none sm:h-40 flex flex-wrap sm:flex-nowrap gap-2 sm:gap-3 overflow-y-auto sm:overflow-y-hidden overflow-x-hidden sm:overflow-x-auto pb-2 custom-scrollbar shrink-0 w-full">
+                  <div className="w-[calc(50%-0.25rem)] sm:w-auto sm:min-w-[240px] min-w-0 flex-1 sm:flex-none basis-[calc(50%-0.25rem)] sm:basis-auto max-w-full sm:max-w-none">
                     <VideoFeed
                       stream={localStream}
                       name={user?.name}
@@ -492,7 +520,10 @@ const RoomMeetingView = ({ roomId, initialMicOn, initialVideoOn }) => {
                     />
                   </div>
                   {remotePeers.map((p) => (
-                    <div key={p.socketId} className="min-w-[180px] sm:min-w-[240px]">
+                    <div
+                      key={p.socketId}
+                      className="w-[calc(50%-0.25rem)] sm:w-auto sm:min-w-[240px] min-w-0 flex-1 sm:flex-none basis-[calc(50%-0.25rem)] sm:basis-auto max-w-full sm:max-w-none"
+                    >
                       <VideoFeed
                         stream={p.stream}
                         name={p.name}

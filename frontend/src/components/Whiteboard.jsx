@@ -79,8 +79,23 @@ const Whiteboard = ({ roomId, onClose }) => {
     }
   }, [restoreLocalContext]);
 
-  const startDrawing = ({ nativeEvent }) => {
-    const { offsetX, offsetY } = nativeEvent;
+  const getCanvasPoint = (nativeEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = nativeEvent.touches?.[0]?.clientX ?? nativeEvent.clientX;
+    const clientY = nativeEvent.touches?.[0]?.clientY ?? nativeEvent.clientY;
+    if (clientX == null || clientY == null) return null;
+    return {
+      offsetX: clientX - rect.left,
+      offsetY: clientY - rect.top,
+    };
+  };
+
+  const startDrawing = (event) => {
+    const point = getCanvasPoint(event.nativeEvent);
+    if (!point) return;
+    const { offsetX, offsetY } = point;
     const ctx = contextRef.current;
     applyToolToContext(ctx, tool, color, size);
     ctx.beginPath();
@@ -89,9 +104,11 @@ const Whiteboard = ({ roomId, onClose }) => {
     setIsDrawing(true);
   };
 
-  const draw = ({ nativeEvent }) => {
+  const draw = (event) => {
     if (!isDrawing) return;
-    const { offsetX, offsetY } = nativeEvent;
+    const point = getCanvasPoint(event.nativeEvent);
+    if (!point) return;
+    const { offsetX, offsetY } = point;
     const ctx = contextRef.current;
     const prev = lastPointRef.current || { x: offsetX, y: offsetY };
     lastPointRef.current = { x: offsetX, y: offsetY };
@@ -197,10 +214,10 @@ const Whiteboard = ({ roomId, onClose }) => {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="fixed inset-0 z-[60] bg-slate-950 flex flex-col"
+      className="fixed inset-0 z-[60] max-h-[100dvh] w-full max-w-[100vw] bg-slate-950 flex flex-col overflow-hidden"
     >
-      <motion.div className="h-16 px-6 flex items-center justify-between border-b border-white/10 bg-slate-900/50 backdrop-blur-md">
-        <motion.div className="flex items-center gap-6">
+      <motion.div className="min-h-16 shrink-0 px-3 sm:px-6 py-2 flex items-center justify-between gap-2 border-b border-white/10 bg-slate-900/50 backdrop-blur-md overflow-hidden">
+        <motion.div className="flex items-center gap-2 sm:gap-6 min-w-0 flex-1 overflow-x-auto custom-scrollbar">
           <motion.div className="flex items-center gap-2">
             <motion.div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-white">
               <FiEdit2 size={16} />
@@ -208,9 +225,9 @@ const Whiteboard = ({ roomId, onClose }) => {
             <span className="text-sm font-semibold text-white">Collaborative Board</span>
           </motion.div>
 
-          <motion.div className="h-6 w-px bg-white/10 mx-2" />
+          <motion.div className="h-6 w-px bg-white/10 mx-1 sm:mx-2 shrink-0 hidden sm:block" />
 
-          <motion.div className="flex items-center gap-2">
+          <motion.div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setTool('pen')}
@@ -229,9 +246,9 @@ const Whiteboard = ({ roomId, onClose }) => {
             </button>
           </motion.div>
 
-          <motion.div className="h-6 w-px bg-white/10 mx-2" />
+          <motion.div className="h-6 w-px bg-white/10 mx-1 sm:mx-2 shrink-0 hidden sm:block" />
 
-          <motion.div className={`flex items-center gap-2 transition-opacity ${tool === 'erase' ? 'opacity-40 pointer-events-none' : ''}`}>
+          <motion.div className={`flex items-center gap-1.5 sm:gap-2 shrink-0 transition-opacity ${tool === 'erase' ? 'opacity-40 pointer-events-none' : ''}`}>
             {COLORS.map((c) => (
               <button
                 key={c}
@@ -243,9 +260,9 @@ const Whiteboard = ({ roomId, onClose }) => {
             ))}
           </motion.div>
 
-          <motion.div className="h-6 w-px bg-white/10 mx-2" />
+          <motion.div className="h-6 w-px bg-white/10 mx-1 sm:mx-2 shrink-0 hidden sm:block" />
 
-          <motion.div className="flex items-center gap-3">
+          <motion.div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {SIZES.map((s) => (
               <button
                 key={s}
@@ -258,7 +275,7 @@ const Whiteboard = ({ roomId, onClose }) => {
           </motion.div>
         </motion.div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={downloadCanvas}
@@ -285,18 +302,31 @@ const Whiteboard = ({ roomId, onClose }) => {
         </div>
       </motion.div>
 
-      <motion.div className="flex-1 relative overflow-hidden bg-[radial-gradient(#ffffff10_1px,transparent_1px)] [background-size:20px_20px]">
+      <motion.div className="flex-1 min-h-0 relative overflow-hidden bg-[radial-gradient(#ffffff10_1px,transparent_1px)] [background-size:20px_20px]">
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={finishDrawing}
           onMouseLeave={finishDrawing}
-          className={`w-full h-full ${tool === 'erase' ? 'cursor-cell' : 'cursor-crosshair'}`}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            startDrawing({ nativeEvent: e });
+          }}
+          onTouchMove={(e) => {
+            e.preventDefault();
+            draw({ nativeEvent: e });
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            finishDrawing();
+          }}
+          onTouchCancel={finishDrawing}
+          className={`w-full h-full max-w-full max-h-full touch-none ${tool === 'erase' ? 'cursor-cell' : 'cursor-crosshair'}`}
         />
       </motion.div>
 
-      <motion.div className="absolute bottom-8 right-8 px-4 py-2 rounded-full bg-primary/20 border border-primary/30 backdrop-blur-md text-[10px] text-primary font-bold uppercase tracking-widest pointer-events-none">
+      <motion.div className="absolute bottom-4 right-4 sm:bottom-8 sm:right-8 max-w-[calc(100%-2rem)] px-3 sm:px-4 py-2 rounded-full bg-primary/20 border border-primary/30 backdrop-blur-md text-[10px] text-primary font-bold uppercase tracking-widest pointer-events-none">
         Live Collaboration Active
       </motion.div>
     </motion.div>

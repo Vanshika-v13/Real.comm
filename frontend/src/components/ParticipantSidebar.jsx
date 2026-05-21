@@ -19,7 +19,7 @@ const ParticipantSidebar = ({ raisedHands = [], isHost = false, onLowerHand, mob
         />
       )}
       <div 
-        className={`fixed lg:relative right-0 top-0 h-full w-80 max-w-[85vw] border-l border-white/5 bg-slate-950/90 lg:bg-slate-950/50 backdrop-blur-xl flex flex-col shrink-0 z-[60] lg:z-auto transition-transform duration-300 ease-in-out ${mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}
+        className={`fixed lg:relative right-0 top-0 h-[100dvh] w-full max-w-[min(20rem,100vw)] sm:w-80 border-l border-white/5 bg-slate-950/90 lg:bg-slate-950/50 backdrop-blur-xl flex flex-col shrink-0 z-[60] lg:z-auto transition-transform duration-300 ease-in-out overflow-hidden ${mobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}
       >
         <div className="p-6 border-b border-white/5">
           <div className="flex items-center justify-between mb-2">
